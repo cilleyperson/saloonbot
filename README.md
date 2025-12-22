@@ -1,6 +1,6 @@
 # Saloon Bot
 
-A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple](https://twurple.js.org/) library. Features a web-based admin interface, custom commands, counters, predefined fun commands, and real-time event handling.
+A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple](https://twurple.js.org/) library. Features a secure web-based admin interface with authentication, custom commands, counters, predefined fun commands, and real-time event handling.
 
 ![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)
@@ -16,10 +16,8 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Security](#security)
 - [Deployment](#deployment)
-  - [Development](#development)
-  - [Production](#production)
-  - [Docker Deployment](#docker-deployment)
 - [Admin Interface](#admin-interface)
 - [Bot Commands](#bot-commands)
 - [Project Structure](#project-structure)
@@ -36,6 +34,14 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - **Counter Commands** - Track counts with `word++` syntax (e.g., `death++` for death counters) with optional emoji prefixes
 - **Chat Memberships** - Join other channels' chats and enable commands across multiple chats
 - **Automatic Token Refresh** - OAuth tokens are automatically refreshed to keep the bot connected
+
+### Security Features
+- **Admin Authentication** - Secure login with bcrypt password hashing and account lockout
+- **Token Encryption** - OAuth tokens encrypted at rest using AES-256-GCM
+- **CSRF Protection** - Cross-site request forgery protection on all forms
+- **Security Headers** - Comprehensive HTTP security headers via Helmet
+- **Rate Limiting** - Protection against brute force and DoS attacks
+- **Session Security** - Secure cookie configuration with httpOnly and sameSite
 
 ### Predefined Commands (10 Commands)
 - **Random Advice** (`!advice`) - Get random life advice from adviceslip.com
@@ -54,7 +60,7 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - **Subscription Notifications** - Welcome new subs, resubs, and gift subs
 
 ### Admin Interface
-- **Web Dashboard** - Manage everything through an intuitive browser-based interface
+- **Secure Web Dashboard** - Password-protected admin interface
 - **Channel Management** - Add, remove, and configure channels
 - **Real-time Status** - Monitor bot connection status and activity
 
@@ -93,13 +99,16 @@ npm install
 
 # Copy environment file and configure
 cp .env.example .env
-# Edit .env with your Twitch credentials
+# Edit .env with your Twitch credentials and secrets
+
+# Create an admin user
+npm run create-admin
 
 # Start the bot
 npm start
 ```
 
-Then open `http://localhost:3000` in your browser to access the admin interface.
+Then open `http://localhost:3000` in your browser, log in with your admin credentials, and authenticate the bot.
 
 ---
 
@@ -118,12 +127,6 @@ cd twitch-saloonbot
 npm install
 ```
 
-This will install all required packages including:
-- `@twurple/*` - Twitch API and chat libraries
-- `better-sqlite3` - SQLite database driver
-- `express` - Web server framework
-- `winston` - Logging library
-
 ### 3. Configure Environment
 
 Copy the example environment file:
@@ -134,11 +137,7 @@ cp .env.example .env
 
 Edit `.env` with your configuration (see [Configuration](#configuration) section).
 
-### 4. Initialize Database
-
-The database is automatically created and initialized on first run. No manual setup required.
-
-### 5. Create Admin User
+### 4. Create Admin User
 
 Create an admin user to access the web interface:
 
@@ -158,14 +157,18 @@ npm run create-admin <username>
 - At least one lowercase letter
 - At least one number
 
-The script will:
-- Prompt for password with hidden input
-- Validate password strength
-- Hash the password with bcrypt (cost factor 12)
-- Create the admin user in the database
-- Display success confirmation
+### 5. Start the Bot
 
-You can create multiple admin users by running the script again with different usernames.
+```bash
+npm start
+```
+
+### 6. Complete Setup in Browser
+
+1. Open `http://localhost:3000` in your browser
+2. Log in with your admin credentials
+3. Click "Authenticate Bot" to connect your bot's Twitch account
+4. Add channels via the Channels page
 
 ---
 
@@ -182,7 +185,8 @@ Create a `.env` file in the project root with the following variables:
 | `TWITCH_BOT_USERNAME` | No | - | The Twitch account username for the bot |
 | `CALLBACK_URL` | Yes | - | OAuth callback URL (must match Twitch app settings) |
 | `PORT` | No | `3000` | Web server port |
-| `SESSION_SECRET` | Yes | - | Random string for session encryption (32+ chars) |
+| `SESSION_SECRET` | Yes* | - | Random string for session encryption (32+ chars) |
+| `TOKEN_ENCRYPTION_KEY` | Yes* | - | 64-character hex string for token encryption |
 | `DATABASE_PATH` | No | `./data/bot.db` | Path to SQLite database file |
 | `LOG_LEVEL` | No | `info` | Logging level: `error`, `warn`, `info`, `debug` |
 | `NODE_ENV` | No | `development` | Environment: `development` or `production` |
@@ -191,6 +195,14 @@ Create a `.env` file in the project root with the following variables:
 | `HTTPS_KEY_PATH` | No | `./certs/server.key` | Path to SSL private key |
 | `HTTPS_CERT_PATH` | No | `./certs/server.crt` | Path to SSL certificate |
 | `HTTPS_REDIRECT_HTTP` | No | `true` | Redirect HTTP requests to HTTPS |
+
+\* Required in production mode (`NODE_ENV=production`)
+
+### Generate Token Encryption Key
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
 ### Example Configuration
 
@@ -209,6 +221,9 @@ CALLBACK_URL=http://localhost:3000/auth/callback
 PORT=3000
 SESSION_SECRET=your-super-secret-random-string-here
 
+# Security (required for production)
+TOKEN_ENCRYPTION_KEY=your-64-character-hex-key-here
+
 # Database Configuration
 DATABASE_PATH=./data/bot.db
 
@@ -221,6 +236,53 @@ NODE_ENV=development
 
 ---
 
+## Security
+
+Saloon Bot includes comprehensive security features to protect your deployment.
+
+### Admin Authentication
+
+- Password-based login with bcrypt hashing (cost factor 12)
+- Account lockout after 5 failed login attempts (15-minute duration)
+- Session-based authentication with secure cookies
+- Automatic session regeneration after login
+
+### Token Encryption
+
+OAuth tokens are encrypted at rest using AES-256-GCM:
+- Unique IV generated per encryption operation
+- Automatic encryption/decryption in the repository layer
+- Backward compatible with existing unencrypted tokens
+
+To migrate existing tokens to encrypted format:
+```bash
+# Preview migration
+node scripts/migrate-tokens.js --dry-run
+
+# Run migration
+node scripts/migrate-tokens.js
+```
+
+### Security Headers
+
+The following security headers are set via Helmet:
+- Content-Security-Policy
+- X-Content-Type-Options
+- X-Frame-Options
+- Strict-Transport-Security (when using HTTPS)
+- Referrer-Policy
+
+### Rate Limiting
+
+- Global: 100 requests per 15 minutes
+- Authentication routes: 10 requests per 15 minutes
+
+### CSRF Protection
+
+All POST forms are protected with CSRF tokens to prevent cross-site request forgery attacks.
+
+---
+
 ## Deployment
 
 ### Development
@@ -228,25 +290,14 @@ NODE_ENV=development
 For local development with auto-reload on file changes:
 
 ```bash
-# Start with file watching
 npm run dev
 ```
 
-This uses Node.js's built-in `--watch` flag to restart the server when files change.
-
-**Development features:**
-- Detailed error messages
-- Debug logging available
-- No HTTPS required
-
 ### Production
-
-For production deployment on a server:
 
 #### 1. Prepare the Environment
 
 ```bash
-# Clone and install
 git clone https://github.com/yourusername/twitch-saloonbot.git
 cd twitch-saloonbot
 npm ci --only=production
@@ -263,28 +314,25 @@ NODE_ENV=production
 LOG_LEVEL=info
 CALLBACK_URL=https://yourdomain.com/auth/callback
 SESSION_SECRET=use-a-very-long-random-string
+TOKEN_ENCRYPTION_KEY=your-64-character-hex-key
 ```
 
-> **Important:** Update your Twitch application's OAuth Redirect URLs to include your production domain.
+> **Important:** Both `SESSION_SECRET` and `TOKEN_ENCRYPTION_KEY` are required in production mode.
 
-#### 3. Start the Bot
+#### 3. Create Admin User
 
-Using npm:
 ```bash
-npm start
+npm run create-admin
 ```
 
-Using a process manager (recommended for production):
+#### 4. Start the Bot
+
+Using a process manager (recommended):
 
 **With PM2:**
 ```bash
-# Install PM2 globally
 npm install -g pm2
-
-# Start the bot
 pm2 start index.js --name "saloon-bot"
-
-# Save process list for auto-restart on reboot
 pm2 save
 pm2 startup
 ```
@@ -319,155 +367,54 @@ sudo systemctl start saloon-bot
 
 ### Docker Deployment
 
-Docker is the recommended deployment method for production.
-
-#### Prerequisites
-- Docker 20.10+
-- Docker Compose v2+
-
 #### Quick Start with Docker
 
 ```bash
-# Navigate to project directory
 cd twitch-saloonbot
 
 # Copy and configure environment
 cp .env.example .env
 # Edit .env with your credentials
 
-# Build and start the container
+# Build and start
 cd docker
 docker compose up -d
+
+# Create admin user in container
+docker compose exec bot node scripts/create-admin.js
 ```
 
 #### Docker Commands
 
 ```bash
-# Start the bot (detached)
+# Start (detached)
 docker compose up -d
 
 # View logs
 docker compose logs -f
 
-# Stop the bot
+# Stop
 docker compose down
 
 # Rebuild after code changes
 docker compose build --no-cache && docker compose up -d
-
-# View container status
-docker compose ps
-
-# Access container shell
-docker compose exec bot sh
-```
-
-#### Development with Docker
-
-For development with file watching:
-
-```bash
-cd docker
-docker compose -f docker-compose.dev.yml up -d
-```
-
-The development compose file mounts your source code as a volume for live reloading.
-
-#### Docker Volumes
-
-The Docker setup creates two persistent volumes:
-
-| Volume | Purpose |
-|--------|---------|
-| `saloon-bot-data` | SQLite database storage |
-| `saloon-bot-logs` | Application logs |
-
-To backup your data:
-```bash
-docker run --rm -v saloon-bot-data:/data -v $(pwd):/backup alpine tar czf /backup/bot-data-backup.tar.gz -C /data .
-```
-
-#### Docker Health Checks
-
-The container includes a health check that verifies the web server is responding. View health status with:
-
-```bash
-docker inspect --format='{{.State.Health.Status}}' saloon-bot
 ```
 
 ### HTTPS Configuration
 
-For secure connections to the admin interface, you can enable HTTPS support.
-
 #### Development (Self-Signed Certificates)
 
-For development and testing, generate self-signed certificates:
-
 ```bash
-# Generate self-signed SSL certificates
 npm run generate-certs
 
-# Enable HTTPS in your .env file
+# Enable in .env
 HTTPS_ENABLED=true
 HTTPS_PORT=3443
 ```
 
-Then start the bot normally. Access the admin interface at `https://localhost:3443`.
+#### Production
 
-> **Note:** Your browser will show a security warning for self-signed certificates. Click "Advanced" and proceed to accept the certificate.
-
-#### Production (Proper Certificates)
-
-For production, use certificates from a trusted Certificate Authority like [Let's Encrypt](https://letsencrypt.org/).
-
-**Option 1: Direct SSL**
-
-```env
-HTTPS_ENABLED=true
-HTTPS_PORT=443
-HTTPS_KEY_PATH=/path/to/privkey.pem
-HTTPS_CERT_PATH=/path/to/fullchain.pem
-```
-
-**Option 2: Reverse Proxy (Recommended)**
-
-Use nginx or another reverse proxy to handle SSL termination:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-#### HTTPS with Docker
-
-Mount your certificates as volumes and configure the environment:
-
-```yaml
-# docker-compose.yml additions
-services:
-  bot:
-    volumes:
-      - ./certs:/app/certs:ro
-    environment:
-      - HTTPS_ENABLED=true
-      - HTTPS_PORT=3443
-    ports:
-      - "3443:3443"
-```
+Use certificates from a trusted CA like [Let's Encrypt](https://letsencrypt.org/), or use a reverse proxy like nginx for SSL termination.
 
 ---
 
@@ -477,12 +424,15 @@ Access the admin interface at `http://localhost:3000` (or `https://localhost:344
 
 ### First-Time Setup
 
-1. **Authenticate the Bot**
-   - Navigate to `http://localhost:3000/auth/bot`
+1. **Log In**
+   - Enter your admin username and password created during installation
+
+2. **Authenticate the Bot**
+   - Click "Authenticate Bot" on the dashboard
    - Log in with your bot's Twitch account
    - Authorize the requested permissions
 
-2. **Add a Channel**
+3. **Add a Channel**
    - Go to the Channels page
    - Click "Add Channel"
    - Authenticate with the channel owner's Twitch account
@@ -494,9 +444,9 @@ Access the admin interface at `http://localhost:3000` (or `https://localhost:344
 |---------|-------------|
 | **Dashboard** | Bot status, connected channels overview |
 | **Channels** | Manage connected channels, view status |
-| **Commands** | Create and manage custom `!commands` with emoji and multiple responses |
-| **Counters** | Create and manage `word++` counters with emoji |
-| **Predefined Commands** | Enable/configure 10 built-in commands (advice, ball, botcommands, dadjoke, define, randomfact, rps, rpsstats, trivia, triviastats) |
+| **Commands** | Create and manage custom `!commands` |
+| **Counters** | Create and manage `word++` counters |
+| **Predefined Commands** | Enable/configure built-in commands |
 | **Chat Memberships** | Join additional chats for cross-channel commands |
 
 ---
@@ -511,7 +461,6 @@ Create your own commands through the admin interface:
 |---------|----------|
 | `!hello` | "Hello, {user}! Welcome to the stream!" |
 | `!discord` | "Join our Discord: https://discord.gg/example" |
-| `!uptime` | "Stream has been live for {uptime}" |
 
 **Template Variables:**
 - `{user}` - Username who triggered the command
@@ -530,20 +479,18 @@ Track things with increment syntax:
 
 ### Predefined Commands
 
-Built-in commands that can be enabled per channel:
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `!advice` | Random life advice | `!advice` → "💡 Don't be afraid to ask questions." |
-| `!ball [question]` | Magic 8 Ball responses | `!ball Will I win?` → "🎱 Signs point to yes." |
-| `!botcommands` | List enabled commands | `!botcommands` → "📋 Built-in: !ball | Custom: !hello" |
-| `!dadjoke` | Random dad jokes | `!dadjoke` → "👨 Why don't scientists trust atoms?..." |
-| `!define <word>` | Dictionary lookup | `!define serendipity` → "📖 serendipity (noun): ..." |
-| `!randomfact` | Random useless facts | `!randomfact` → "🧠 Honey never spoils..." |
-| `!rps <choice>` | Rock Paper Scissors | `!rps rock` → "🎮 🪨 vs ✂️ - You win!" |
-| `!rpsstats` | View your RPS statistics | "📊 5W-3L-2T (62%)" |
-| `!trivia` | Start a trivia question | "🎯 What is the capital of France? A: ... B: ..." |
-| `!triviastats` | View your trivia statistics | "📊 5 correct, 2 incorrect (71%)" |
+| Command | Description |
+|---------|-------------|
+| `!advice` | Random life advice |
+| `!ball [question]` | Magic 8 Ball responses |
+| `!botcommands` | List enabled commands |
+| `!dadjoke` | Random dad jokes |
+| `!define <word>` | Dictionary lookup |
+| `!randomfact` | Random useless facts |
+| `!rps <choice>` | Rock Paper Scissors |
+| `!rpsstats` | Your RPS statistics |
+| `!trivia` | Start a trivia question |
+| `!triviastats` | Your trivia statistics |
 
 ---
 
@@ -563,16 +510,19 @@ twitch-saloonbot/
 │   ├── docker-compose.yml
 │   └── docker-compose.dev.yml
 │
-├── migrations/              # Database migrations (6 total)
+├── migrations/              # Database migrations (7 total)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
-│   ├── 004_command_emoji.sql
-│   ├── 005_command_responses.sql
-│   └── 006_trivia_stats.sql
+│   ├── 004_command_responses.sql
+│   ├── 005_emoji_support.sql
+│   ├── 006_trivia_stats.sql
+│   └── 007_admin_users.sql
 │
 ├── scripts/                 # Utility scripts
-│   └── generate-certs.sh   # Generate SSL certificates
+│   ├── generate-certs.sh    # Generate SSL certificates
+│   ├── create-admin.js      # Create admin user
+│   └── migrate-tokens.js    # Encrypt existing tokens
 │
 ├── public/                  # Static web assets
 │   └── css/style.css
@@ -584,10 +534,6 @@ twitch-saloonbot/
 │   │   ├── channel-manager.js
 │   │   ├── event-handler.js
 │   │   └── handlers/        # Event handlers
-│   │       ├── command-handler.js
-│   │       ├── predefined-command-handler.js
-│   │       ├── raid-handler.js
-│   │       └── sub-handler.js
 │   │
 │   ├── config/              # Configuration
 │   │   └── index.js
@@ -595,70 +541,35 @@ twitch-saloonbot/
 │   ├── database/            # Data layer
 │   │   ├── index.js         # SQLite connection
 │   │   ├── schema.js        # Table definitions
-│   │   └── repositories/    # Data access (12 repos)
+│   │   └── repositories/    # Data access (13 repos)
 │   │
-│   ├── services/            # External API services (5 services)
-│   │   ├── advice-api.js    # adviceslip.com
-│   │   ├── dadjoke-api.js   # icanhazdadjoke.com
-│   │   ├── dictionary-api.js # Free Dictionary API
-│   │   ├── randomfact-api.js # uselessfacts.jsph.pl
-│   │   └── trivia-api.js     # Open Trivia Database
+│   ├── services/            # External API services
+│   │   ├── advice-api.js
+│   │   ├── dadjoke-api.js
+│   │   ├── dictionary-api.js
+│   │   ├── randomfact-api.js
+│   │   └── trivia-api.js
 │   │
 │   ├── utils/               # Utilities
-│   │   ├── logger.js
+│   │   ├── api-client.js    # External API wrapper
+│   │   ├── crypto.js        # Token encryption
+│   │   ├── logger.js        # Winston logger
 │   │   ├── message-splitter.js
 │   │   └── template.js
 │   │
 │   └── web/                 # Web interface
-│       ├── index.js         # Express app (HTTP/HTTPS)
+│       ├── index.js         # Express app
+│       ├── middleware/      # Express middleware
+│       │   └── auth.js      # Authentication
 │       ├── routes/          # HTTP routes
+│       │   ├── auth.js      # OAuth routes
+│       │   ├── login.js     # Login/logout
+│       │   └── ...
 │       └── views/           # EJS templates
 │
 └── docs/                    # Documentation
-    └── dev-phase-2/         # Phase 2 development docs
+    └── sec-review-1/        # Security review docs
 ```
-
----
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. **Fork the repository**
-
-2. **Create a feature branch**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-
-3. **Make your changes**
-   - Follow existing code style
-   - Add comments for complex logic
-   - Update documentation if needed
-
-4. **Test your changes**
-   ```bash
-   npm test
-   ```
-
-5. **Commit your changes**
-   ```bash
-   git commit -m "Add amazing feature"
-   ```
-
-6. **Push to your fork**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-
-7. **Open a Pull Request**
-
-### Development Guidelines
-
-- Use `createChildLogger('component-name')` for logging
-- Database operations go through the repository layer
-- Follow the existing patterns for handlers and routes
-- Template variables use `{variable}` syntax
 
 ---
 
@@ -666,33 +577,29 @@ Contributions are welcome! Please follow these steps:
 
 ### Common Issues
 
+**Can't log in to admin interface**
+- Ensure you've created an admin user with `npm run create-admin`
+- Check password meets requirements (12+ chars, mixed case, numbers)
+- Account may be locked after 5 failed attempts (wait 15 minutes)
+
 **Bot won't connect to chat**
-- Ensure the bot account is authenticated via `/auth/bot`
-- Check that the channel is authenticated and active
+- Log in to the admin interface first
+- Click "Authenticate Bot" on the dashboard
 - Verify your Twitch application credentials
 
 **Commands not working**
 - Check if the command is enabled in the admin interface
-- Verify the chat scope settings (All Chats vs Selected Chats)
+- Verify the chat scope settings
 - Check cooldown settings
 
-**Database errors**
-- Ensure the data directory exists and is writable
-- Check `DATABASE_PATH` in your `.env` file
-- For Docker, verify volume mounts are correct
-
-**OAuth errors**
-- Verify `CALLBACK_URL` matches your Twitch application settings
-- Ensure `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` are correct
-- Check that required scopes are approved
+**Token encryption errors**
+- Ensure `TOKEN_ENCRYPTION_KEY` is set (64 hex characters)
+- Run `node scripts/migrate-tokens.js` to encrypt existing tokens
 
 ### Logs
 
-View logs based on your deployment method:
-
 ```bash
-# Direct Node.js
-# Logs output to console
+# Direct Node.js - logs to console
 
 # PM2
 pm2 logs saloon-bot
@@ -706,6 +613,27 @@ journalctl -u saloon-bot -f
 
 ---
 
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Test your changes
+5. Commit (`git commit -m "Add amazing feature"`)
+6. Push (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Development Guidelines
+
+- Use `createChildLogger('component-name')` for logging
+- Database operations go through the repository layer
+- Follow existing patterns for handlers and routes
+- Template variables use `{variable}` syntax
+
+---
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - see the [LICENSE.md](LICENSE.md) file for details.
@@ -714,17 +642,15 @@ This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - s
 
 ## Acknowledgments
 
-- [Twurple](https://twurple.js.org/) - Excellent Twitch API library
+- [Twurple](https://twurple.js.org/) - Twitch API library
 - [Free Dictionary API](https://dictionaryapi.dev/) - Dictionary definitions
 - [icanhazdadjoke](https://icanhazdadjoke.com/) - Dad jokes API
 - [Advice Slip API](https://api.adviceslip.com/) - Random advice
 - [Random Useless Facts](https://uselessfacts.jsph.pl/) - Random facts API
 - [Open Trivia Database](https://opentdb.com/) - Trivia questions API
-- [Express.js](https://expressjs.com/) - Web framework
-- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) - SQLite driver
 
 ---
 
 <p align="center">
-  Made with ❤️ for the Twitch community
+  Made with &#10084; for the Twitch community
 </p>

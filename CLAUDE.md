@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Twitch chatbot called "Saloon Bot" built with Node.js and the Twurple library (v8.x). The bot supports multiple Twitch channels with per-channel configuration, custom commands with emoji support, counters, predefined commands (Magic 8 Ball, Dad Jokes, Dictionary, Rock Paper Scissors, Trivia, Random Facts, Advice, Bot Commands List), and automatic notifications. Features a web-based admin interface with optional HTTPS support.
+This is a Twitch chatbot called "Saloon Bot" built with Node.js and the Twurple library (v8.x). The bot supports multiple Twitch channels with per-channel configuration, custom commands with emoji support, counters, predefined commands (Magic 8 Ball, Dad Jokes, Dictionary, Rock Paper Scissors, Trivia, Random Facts, Advice, Bot Commands List), and automatic notifications. Features a secure web-based admin interface with authentication, token encryption, CSRF protection, and HTTPS support.
 
 ## Commands
 
@@ -24,11 +24,18 @@ npm test
 # Generate SSL certificates for HTTPS
 npm run generate-certs
 
+# Create admin user (required for web interface)
+npm run create-admin
+
+# Migrate existing tokens to encrypted format
+node scripts/migrate-tokens.js
+node scripts/migrate-tokens.js --dry-run  # Preview only
+
 # Docker (development)
-cd docker && docker compose up -d
+cd docker && docker compose -f docker-compose.dev.yml up -d
 
 # Docker (production)
-cd docker && docker compose -f docker-compose.yml up -d
+cd docker && docker compose up -d
 ```
 
 ## Project Structure
@@ -60,8 +67,9 @@ twitch-saloonbot/
 │   ├── database/
 │   │   ├── index.js           # SQLite connection (better-sqlite3)
 │   │   ├── schema.js          # Table creation and migrations
-│   │   └── repositories/      # Data access layer (12 repos)
-│   │       ├── auth-repo.js
+│   │   └── repositories/      # Data access layer (13 repos)
+│   │       ├── admin-user-repo.js    # Admin user authentication
+│   │       ├── auth-repo.js          # OAuth tokens (encrypted)
 │   │       ├── channel-repo.js
 │   │       ├── chat-membership-repo.js
 │   │       ├── command-repo.js
@@ -82,22 +90,28 @@ twitch-saloonbot/
 │   │   └── trivia-api.js      # Open Trivia Database integration
 │   │
 │   ├── utils/
-│   │   ├── logger.js          # Winston logger configuration
+│   │   ├── api-client.js      # External API wrapper with timeout
+│   │   ├── crypto.js          # AES-256-GCM token encryption
+│   │   ├── logger.js          # Winston logger with sensitive data redaction
 │   │   ├── message-splitter.js # Twitch message length splitting
 │   │   └── template.js        # Message template formatting
 │   │
 │   └── web/
-│       ├── index.js           # Express app setup with HTTPS support
+│       ├── index.js           # Express app setup with security middleware
+│       ├── middleware/        # Express middleware
+│       │   └── auth.js        # Authentication (requireAuth, setLocals)
 │       ├── routes/            # HTTP route handlers
-│       │   ├── auth.js
+│       │   ├── auth.js        # Twitch OAuth routes
 │       │   ├── channels.js
 │       │   ├── chat-memberships.js
 │       │   ├── commands.js
 │       │   ├── counters.js
 │       │   ├── dashboard.js
+│       │   ├── login.js       # Admin login/logout
 │       │   └── predefined-commands.js
 │       └── views/             # EJS templates for admin UI
 │           ├── layout.ejs
+│           ├── login.ejs
 │           ├── dashboard.ejs
 │           ├── error.ejs
 │           ├── channels/
@@ -106,21 +120,24 @@ twitch-saloonbot/
 │           ├── counters/
 │           └── predefined-commands/
 │
-├── migrations/                # Database migrations (6 migrations)
+├── migrations/                # Database migrations (7 migrations)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
-│   ├── 004_command_emoji.sql       # Emoji support for commands/counters
-│   ├── 005_command_responses.sql   # Multi-response commands
-│   └── 006_trivia_stats.sql        # Trivia game statistics
+│   ├── 004_command_responses.sql
+│   ├── 005_emoji_support.sql
+│   ├── 006_trivia_stats.sql
+│   └── 007_admin_users.sql    # Admin authentication
 │
 ├── docker/                    # Docker configuration
-│   ├── Dockerfile
-│   ├── docker-compose.yml
+│   ├── Dockerfile            # Non-root user, security hardened
+│   ├── docker-compose.yml    # Production with security_opt
 │   └── docker-compose.dev.yml
 │
 ├── scripts/                   # Utility scripts
-│   └── generate-certs.sh     # Generate self-signed SSL certificates
+│   ├── generate-certs.sh     # Generate self-signed SSL certificates
+│   ├── create-admin.js       # Create admin user (interactive)
+│   └── migrate-tokens.js     # Encrypt existing OAuth tokens
 │
 ├── public/                    # Static web assets
 │   └── css/style.css
@@ -133,7 +150,7 @@ twitch-saloonbot/
 │   └── server.crt
 │
 └── docs/                      # Documentation
-    └── dev-phase-2/          # Phase 2 development notes
+    └── sec-review-1/         # Security review documentation
 ```
 
 ## Architecture
@@ -156,18 +173,47 @@ The project uses **Twurple** (https://twurple.js.org/), the modern Twitch API li
 - **CommandHandler** (`src/bot/handlers/command-handler.js`) - Custom commands and counters
 - **PredefinedCommandHandler** (`src/bot/handlers/predefined-command-handler.js`) - Built-in commands
 
+### Security Architecture
+
+The application includes comprehensive security features:
+
+**Authentication:**
+- Admin users stored with bcrypt-hashed passwords (cost factor 12)
+- Session-based authentication with secure cookies
+- Account lockout after 5 failed attempts (15-minute duration)
+- Session regeneration after login
+
+**Token Encryption:**
+- OAuth tokens encrypted at rest using AES-256-GCM
+- Unique IV per encryption operation
+- Key configured via `TOKEN_ENCRYPTION_KEY` environment variable
+- Backward compatible with unencrypted legacy tokens
+
+**Web Security:**
+- Helmet middleware for security headers (CSP, X-Frame-Options, etc.)
+- CSRF protection via csurf middleware
+- Rate limiting (100 req/15min global, 10 req/15min auth)
+- Body parser limits (10kb)
+- Sensitive data redaction in logs
+
+**Docker Security:**
+- Non-root user in container
+- `security_opt: no-new-privileges:true`
+- `cap_drop: ALL`
+
 ### Database
 
-SQLite database with better-sqlite3. Current schema version: 6
+SQLite database with better-sqlite3. Current schema version: 7
 
 **Core Tables:**
 - `schema_version` - Tracks applied migrations
 - `channels` - Registered Twitch channels
-- `channel_auth` - OAuth tokens per channel
+- `channel_auth` - OAuth tokens per channel (encrypted)
 - `channel_settings` - Per-channel feature configuration
 - `custom_commands` - !command definitions (with emoji support)
 - `counter_commands` - word++ counter definitions (with emoji support)
-- `bot_auth` - Bot account OAuth tokens
+- `bot_auth` - Bot account OAuth tokens (encrypted)
+- `admin_users` - Admin user credentials
 
 **Chat Membership Tables:**
 - `channel_chat_memberships` - Channels the bot should join for a connected channel
@@ -187,7 +233,8 @@ SQLite database with better-sqlite3. Current schema version: 6
 
 ### Admin Web Interface
 
-Express.js server with EJS templates. Supports HTTP (default) and HTTPS:
+Express.js server with EJS templates and comprehensive security:
+- Login required for all admin routes
 - Dashboard with bot status
 - Channel management (add/remove/configure)
 - Chat membership management
@@ -199,117 +246,95 @@ Express.js server with EJS templates. Supports HTTP (default) and HTTPS:
 - RPS leaderboard and stats
 - Trivia leaderboard and stats
 
-## Features
+## Environment Configuration
 
-### Predefined Commands
+Copy `.env.example` to `.env` and configure:
 
-Built-in commands that can be enabled per-channel. Available commands defined in `PREDEFINED_COMMANDS` array in `predefined-settings-repo.js`:
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TWITCH_CLIENT_ID` | Yes | - | From Twitch Developer Console |
+| `TWITCH_CLIENT_SECRET` | Yes | - | From Twitch Developer Console |
+| `TWITCH_BOT_USERNAME` | No | - | Bot account username |
+| `CALLBACK_URL` | Yes | - | OAuth callback URL |
+| `PORT` | No | 3000 | HTTP web server port |
+| `SESSION_SECRET` | Yes* | - | Session encryption secret |
+| `TOKEN_ENCRYPTION_KEY` | Yes* | - | 64-char hex key for token encryption |
+| `DATABASE_PATH` | No | ./data/bot.db | SQLite database path |
+| `LOG_LEVEL` | No | info | error/warn/info/debug |
+| `NODE_ENV` | No | development | development/production |
+| `HTTPS_ENABLED` | No | false | Enable HTTPS for admin interface |
+| `HTTPS_PORT` | No | 3443 | HTTPS web server port |
+| `HTTPS_KEY_PATH` | No | ./certs/server.key | Path to SSL private key |
+| `HTTPS_CERT_PATH` | No | ./certs/server.crt | Path to SSL certificate |
+| `HTTPS_REDIRECT_HTTP` | No | true | Redirect HTTP to HTTPS |
 
-Current list: `['advice', 'ball', 'botcommands', 'dadjoke', 'define', 'randomfact', 'rps', 'rpsstats', 'trivia', 'triviastats']`
+\* Required in production mode
 
-**Random Advice (`!advice`)**
+**Generate encryption key:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
-User: !advice
-Bot: 💡 Here's some advice: Don't be afraid to ask questions.
+
+## Development Guidelines
+
+- All Twitch OAuth scopes are defined in `src/config/index.js`
+- Database operations go through repository layer, not direct queries
+- Use `createChildLogger('component-name')` for component-specific logging
+- Templates use `{variable}` syntax, processed by `src/utils/template.js`
+- Settings are per-channel, stored in `channel_settings` table
+- Predefined commands check settings before custom commands
+- Use `splitMessage()` from `src/utils/message-splitter.js` for long responses
+- Migrations run automatically on startup via `initializeSchema()`
+- Token encryption/decryption is automatic in auth-repo.js
+- Never log sensitive data - logger redacts known sensitive fields
+
+### Template Pattern in EJS
+
+Templates use JavaScript template literals for the body:
+```ejs
+<%- include('../layout', { body: `
+  <div>Content here</div>
+  <form>
+    <input type="hidden" name="_csrf" value="${csrfToken}">
+  </form>
+` }) %>
 ```
-- Uses adviceslip.com API
 
-**Magic 8 Ball (`!ball`)**
+Note: Use `${variable}` for JavaScript interpolation inside template literals, NOT `<%= variable %>`.
+The only exception is `login.ejs` which uses traditional EJS syntax.
+
+### Adding a New Predefined Command
+
+1. Add command name to `PREDEFINED_COMMANDS` array in `predefined-settings-repo.js`
+2. Add command info to `getCommandInfo()` function in same file
+3. Create API service in `src/services/` if needed (use `fetchWithTimeout` from `api-client.js`)
+4. Add handler method in `predefined-command-handler.js`
+5. Add case to switch statement in `handleCommand()` method
+6. Test the command and commit
+
+## Dependencies
+
+```json
+{
+  "@twurple/api": "^8.0.2",
+  "@twurple/auth": "^8.0.2",
+  "@twurple/chat": "^8.0.2",
+  "@twurple/eventsub-ws": "^8.0.2",
+  "bcrypt": "^6.0.0",
+  "better-sqlite3": "^12.5.0",
+  "cookie-parser": "^1.4.7",
+  "csurf": "^1.11.0",
+  "dotenv": "^17.2.3",
+  "ejs": "^3.1.10",
+  "express": "^5.2.1",
+  "express-rate-limit": "^7.1.5",
+  "express-session": "^1.18.2",
+  "helmet": "^8.1.0",
+  "winston": "^3.19.0"
+}
 ```
-User: !ball Will I have a good day?
-Bot: 🎱 @User, the Magic 8 Ball says: Signs point to yes.
-```
 
-**Bot Commands (`!botcommands`)**
-```
-User: !botcommands
-Bot: 📋 Commands available: Built-in: !ball, !dadjoke | Custom: !hello, !discord | Counters: death++, fail++
-```
-- Lists all enabled predefined, custom commands, and counters for the current chat
-
-**Dad Jokes (`!dadjoke`)**
-```
-User: !dadjoke
-Bot: 👨 Why don't scientists trust atoms? Because they make up everything!
-```
-- Uses icanhazdadjoke.com API
-- Long jokes automatically split into multiple messages
-
-**Dictionary (`!define`)**
-```
-User: !define serendipity
-Bot: 📖 serendipity (noun): The occurrence of events by chance in a happy way.
-```
-- Uses Free Dictionary API (https://api.dictionaryapi.dev)
-- Custom definitions override API lookups
-- Long definitions automatically split into multiple messages
-
-**Random Fact (`!randomfact`)**
-```
-User: !randomfact
-Bot: 🧠 Did you know? Honey never spoils and is edible even after thousands of years.
-```
-- Uses uselessfacts.jsph.pl API
-
-**Rock Paper Scissors (`!rps`, `!rpsstats`)**
-```
-User: !rps rock
-Bot: 🎮 🪨 Rock vs ✂️ Scissors - You win, @User! 🎉 (W:5 L:3)
-
-User: !rpsstats
-Bot: 📊 @User's RPS Stats: 5W-3L-2T (50%) | Games: 10 | Best Streak: 3
-```
-- Accepts aliases: `r`/`p`/`s`, full words, or emojis
-- Persistent statistics per user per channel
-
-**Trivia (`!trivia`, `!triviastats`)**
-```
-User: !trivia
-Bot: 🎯 Trivia Time! (General Knowledge - easy)
-Bot: What is the capital of France? | A: London | B: Paris | C: Berlin | D: Madrid
-Bot: Answer with A, B, C, or D within 30 seconds!
-User: B
-Bot: 🎉 @User got it right! The answer was B: Paris | Streak: 3 🔥
-
-User: !triviastats
-Bot: 📊 @User's Trivia Stats: 5 correct, 2 incorrect (71%) | Current Streak: 3 | Best: 5
-```
-- Uses Open Trivia Database API (opentdb.com)
-- General Knowledge category, multiple choice questions
-- 30-second timer for answers
-- Tracks correct/incorrect answers, streaks per user per channel
-
-### Chat Scoping
-
-Commands and counters can be scoped to specific chats:
-- **All Chats**: Works everywhere the bot is present
-- **Selected Chats**: Only works in specified chats (own chat + membership chats)
-
-### Chat Memberships
-
-Channels can configure the bot to join other chats:
-- Add target channels via the admin interface
-- Commands/counters can work in membership chats
-- Use `__own__` special value for the channel's own chat
-
-### Event Notifications
-
-**Raid Shoutouts** - Automatic message when channel receives a raid. Template variables:
-- `{raider}`, `{raider_display}`, `{viewers}`, `{game}`
-
-**Subscription Notifications** - Thank-you messages for subs, resubs, and gift subs. Template variables:
-- `{subscriber}`, `{tier}`, `{months}`, `{streak}`, `{message}`, `{gifter}`
-
-### Custom Commands
-`!commandname` triggers configured response. Features:
-- **Emoji prefix**: Optional emoji displayed before the response
-- **Multiple responses**: Commands can have multiple responses (one chosen randomly)
-- **Template variables**: `{user}`, `{channel}`, `{args}`, `{arg1}`, `{arg2}`, `{arg3}`
-
-### Counter Commands
-`word++` increments counter and shows count. Features:
-- **Emoji prefix**: Optional emoji displayed before the count
-- **Template variables**: `{counter}`, `{count}`, `{user}`
+**Requires:** Node.js 20.0.0 or higher
 
 ## External APIs
 
@@ -318,34 +343,14 @@ Channels can configure the bot to join other chats:
 - Bot scopes: `chat:read`, `chat:edit`, `user:read:email`
 - Channel scopes: `channel:read:subscriptions`, `moderator:read:followers`, `moderator:manage:shoutouts`
 
-### Advice Slip API
-- No authentication required
-- Endpoint: `https://api.adviceslip.com/advice`
-- Returns random advice in JSON format
-- Service: `src/services/advice-api.js`
+### External API Services
+All services use `fetchWithTimeout` from `src/utils/api-client.js` for consistent timeout handling (10 seconds).
 
-### icanhazdadjoke.com
-- No authentication required
-- Returns random dad jokes in JSON format
-- Service: `src/services/dadjoke-api.js`
-
-### Free Dictionary API
-- No authentication required
-- Endpoint: `https://api.dictionaryapi.dev/api/v2/entries/en/{word}`
-- Service: `src/services/dictionary-api.js`
-
-### Random Useless Facts API
-- No authentication required
-- Endpoint: `https://uselessfacts.jsph.pl/api/v2/facts/random`
-- Returns random facts in JSON format
-- Service: `src/services/randomfact-api.js`
-
-### Open Trivia Database
-- No authentication required
-- Endpoint: `https://opentdb.com/api.php?amount=1&category=9&type=multiple`
-- Returns trivia questions with multiple choice answers
-- 15-second timeout for API requests
-- Service: `src/services/trivia-api.js`
+- **Advice Slip API** (`src/services/advice-api.js`) - `https://api.adviceslip.com/advice`
+- **icanhazdadjoke** (`src/services/dadjoke-api.js`) - Random dad jokes
+- **Free Dictionary API** (`src/services/dictionary-api.js`) - `https://api.dictionaryapi.dev/api/v2/entries/en/{word}`
+- **Random Useless Facts** (`src/services/randomfact-api.js`) - `https://uselessfacts.jsph.pl/api/v2/facts/random`
+- **Open Trivia Database** (`src/services/trivia-api.js`) - `https://opentdb.com/api.php`
 
 ## Twurple Documentation
 
@@ -365,50 +370,9 @@ When implementing Twitch functionality:
 - Use `EventSubWsListener` for real-time events (raids, subs, etc.)
 - Chat messages for commands come through ChatClient's `onMessage` event
 
-## Environment Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TWITCH_CLIENT_ID` | Yes | - | From Twitch Developer Console |
-| `TWITCH_CLIENT_SECRET` | Yes | - | From Twitch Developer Console |
-| `TWITCH_BOT_USERNAME` | No | - | Bot account username |
-| `CALLBACK_URL` | Yes | - | OAuth callback URL |
-| `PORT` | No | 3000 | HTTP web server port |
-| `SESSION_SECRET` | Yes | - | Session encryption secret |
-| `DATABASE_PATH` | No | ./data/bot.db | SQLite database path |
-| `LOG_LEVEL` | No | info | error/warn/info/debug |
-| `NODE_ENV` | No | development | development/production |
-| `HTTPS_ENABLED` | No | false | Enable HTTPS for admin interface |
-| `HTTPS_PORT` | No | 3443 | HTTPS web server port |
-| `HTTPS_KEY_PATH` | No | ./certs/server.key | Path to SSL private key |
-| `HTTPS_CERT_PATH` | No | ./certs/server.crt | Path to SSL certificate |
-| `HTTPS_REDIRECT_HTTP` | No | true | Redirect HTTP to HTTPS |
-
-## Development Guidelines
-
-- All Twitch OAuth scopes are defined in `src/config/index.js`
-- Database operations go through repository layer, not direct queries
-- Use `createChildLogger('component-name')` for component-specific logging
-- Templates use `{variable}` syntax, processed by `src/utils/template.js`
-- Settings are per-channel, stored in `channel_settings` table
-- Predefined commands check settings before custom commands
-- Use `splitMessage()` from `src/utils/message-splitter.js` for long responses
-- Migrations run automatically on startup via `initializeSchema()`
-
-### Adding a New Predefined Command
-
-1. Add command name to `PREDEFINED_COMMANDS` array in `predefined-settings-repo.js`
-2. Add command info to `getCommandInfo()` function in same file
-3. Create API service in `src/services/` if needed
-4. Add handler method in `predefined-command-handler.js`
-5. Add case to switch statement in `handleCommand()` method
-6. Test the command and commit
-
 ## Docker
 
-The project includes Docker configuration in the `docker/` directory:
+The project includes Docker configuration in the `docker/` directory with security hardening:
 
 ```bash
 # Development (with file watching)
@@ -416,6 +380,9 @@ cd docker && docker compose -f docker-compose.dev.yml up -d
 
 # Production
 cd docker && docker compose up -d
+
+# Create admin user in container
+docker compose exec bot node scripts/create-admin.js
 
 # Rebuild after code changes
 docker compose build --no-cache && docker compose up -d
@@ -440,22 +407,3 @@ The server supports three modes:
 - **HTTP only** (default): Standard HTTP on configured port
 - **HTTPS with redirect**: HTTPS on HTTPS_PORT, HTTP redirects to HTTPS
 - **Dual mode**: Both HTTP and HTTPS serve the app (set `HTTPS_REDIRECT_HTTP=false`)
-
-## Dependencies
-
-```json
-{
-  "@twurple/api": "^8.0.2",
-  "@twurple/auth": "^8.0.2",
-  "@twurple/chat": "^8.0.2",
-  "@twurple/eventsub-ws": "^8.0.2",
-  "better-sqlite3": "^11.6.0",
-  "dotenv": "^16.4.7",
-  "ejs": "^3.1.10",
-  "express": "^4.21.2",
-  "express-session": "^1.18.1",
-  "winston": "^3.17.0"
-}
-```
-
-**Requires:** Node.js 20.0.0 or higher
