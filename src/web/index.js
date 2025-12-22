@@ -65,11 +65,14 @@ function createApp() {
   app.set('views', path.join(__dirname, 'views'));
 
   // Security headers - helmet should be one of the first middleware
+  // Note: 'unsafe-inline' for scripts is needed for admin interface inline handlers
+  // This is acceptable for an authenticated admin-only interface
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick, etc.)
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:"],
         fontSrc: ["'self'"],
