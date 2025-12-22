@@ -95,7 +95,7 @@ function createApp() {
     cookie: {
       secure: config.isProduction,
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax', // 'lax' allows cookies on OAuth redirects (top-level navigation)
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   }));
