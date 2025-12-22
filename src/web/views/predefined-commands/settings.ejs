@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="predefined-settings-page">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -20,97 +20,111 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>${cmdEmoji} ${cmdDisplayName}</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">${cmdEmoji} ${cmdDisplayName}</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
   </div>
 
-  <div class="card">
-    <h3>Command Info</h3>
-    <dl class="info-list">
-      <dt>Trigger</dt>
-      <dd><code>${cmdTrigger}</code></dd>
-      <dt>Description</dt>
-      <dd>${cmdDesc}</dd>
-    </dl>
+  <div class="page-content">
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Command Info</h3>
+      </div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div class="info-item">
+            <dt>Trigger</dt>
+            <dd><code>${cmdTrigger}</code></dd>
+          </div>
+          <div class="info-item">
+            <dt>Description</dt>
+            <dd>${cmdDesc}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <form action="/channels/${channel.id}/predefined/${cmdSettingsName}" method="POST">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
+
+      <div class="card mb-6">
+        <div class="card-header">
+          <h3 class="card-title">Settings</h3>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" name="is_enabled" ${settings.is_enabled ? 'checked' : ''}>
+              <span class="form-checkbox-label">Enable this command</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="cooldown_seconds" class="form-label">Cooldown (seconds)</label>
+            <input type="number" id="cooldown_seconds" name="cooldown_seconds"
+                   value="${settings.cooldown_seconds}" min="0" max="3600" class="form-input">
+            <p class="form-hint">Time between uses of this command</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Chat Scope</label>
+            <div class="form-radio-group">
+              <label class="form-radio">
+                <input type="radio" name="chat_scope" value="all" ${settings.chat_scope === 'all' ? 'checked' : ''}>
+                <span class="form-radio-label">All Chats (works everywhere)</span>
+              </label>
+              <label class="form-radio">
+                <input type="radio" name="chat_scope" value="selected" ${settings.chat_scope === 'selected' ? 'checked' : ''}>
+                <span class="form-radio-label">Selected Chats Only</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group chat-scope-options" style="${settings.chat_scope !== 'selected' ? 'display: none;' : ''}">
+            <label class="form-label">Select Chats</label>
+            <div class="form-checkbox-group">
+              <label class="form-checkbox">
+                <input type="checkbox" name="chat_scopes" value="__own__"
+                       ${settings.selected_chats.includes('__own__') ? 'checked' : ''}>
+                <span class="form-checkbox-label">Own chat (${username})</span>
+              </label>
+              ${chatMemberships.map(m => {
+                const targetChannel = escapeHtml(m.target_channel);
+                const targetChannelLower = m.target_channel.toLowerCase();
+                return `
+              <label class="form-checkbox">
+                <input type="checkbox" name="chat_scopes" value="${escapeHtml(targetChannelLower)}"
+                       ${settings.selected_chats.includes(targetChannelLower) ? 'checked' : ''}>
+                <span class="form-checkbox-label">${targetChannel}</span>
+              </label>
+                `;
+              }).join('')}
+            </div>
+            ${chatMemberships.length === 0 ? `
+            <p class="form-hint">No additional chats configured. <a href="/channels/${channel.id}/chat-memberships">Add chat memberships</a> to enable this command in other channels.</p>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
   </div>
-
-  <form action="/channels/${channel.id}/predefined/${cmdSettingsName}" method="POST" class="form">
-    <input type="hidden" name="_csrf" value="${csrfToken}">
-    <div class="card">
-      <h3>Settings</h3>
-
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="is_enabled" ${settings.is_enabled ? 'checked' : ''}>
-          Enable this command
-        </label>
-      </div>
-
-      <div class="form-group">
-        <label for="cooldown_seconds">Cooldown (seconds)</label>
-        <input type="number" id="cooldown_seconds" name="cooldown_seconds"
-               value="${settings.cooldown_seconds}" min="0" max="3600">
-        <small>Time between uses of this command</small>
-      </div>
-
-      <div class="form-group">
-        <label>Chat Scope</label>
-        <div class="radio-group">
-          <label class="radio-label">
-            <input type="radio" name="chat_scope" value="all" ${settings.chat_scope === 'all' ? 'checked' : ''}>
-            All Chats (works everywhere)
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="chat_scope" value="selected" ${settings.chat_scope === 'selected' ? 'checked' : ''}>
-            Selected Chats Only
-          </label>
-        </div>
-      </div>
-
-      <div class="form-group chat-scope-options" style="${settings.chat_scope !== 'selected' ? 'display: none;' : ''}">
-        <label>Select Chats</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="chat_scopes" value="__own__"
-                   ${settings.selected_chats.includes('__own__') ? 'checked' : ''}>
-            Own chat (${username})
-          </label>
-          ${chatMemberships.map(m => {
-            const targetChannel = escapeHtml(m.target_channel);
-            const targetChannelLower = m.target_channel.toLowerCase();
-            return `
-          <label class="checkbox-label">
-            <input type="checkbox" name="chat_scopes" value="${escapeHtml(targetChannelLower)}"
-                   ${settings.selected_chats.includes(targetChannelLower) ? 'checked' : ''}>
-            ${targetChannel}
-          </label>
-            `;
-          }).join('')}
-        </div>
-        ${chatMemberships.length === 0 ? `
-        <small>No additional chats configured. <a href="/channels/${channel.id}/chats">Add chat memberships</a> to enable this command in other channels.</small>
-        ` : ''}
-      </div>
-    </div>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Save Settings</button>
-      <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
     `;
   })()}
 </div>
 
 <script>
-document.querySelectorAll('input[name="chat_scope"]').forEach(radio => {
+document.querySelectorAll('input[name="chat_scope"]').forEach(function(radio) {
   radio.addEventListener('change', function() {
-    const scopeOptions = document.querySelector('.chat-scope-options');
+    var scopeOptions = document.querySelector('.chat-scope-options');
     scopeOptions.style.display = this.value === 'selected' ? '' : 'none';
   });
 });
 </script>
-` }) %>
+`, activePage: 'predefined', channel: channel }) %>

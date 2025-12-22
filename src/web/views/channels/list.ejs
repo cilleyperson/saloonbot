@@ -1,66 +1,88 @@
 <%- include('../layout', { body: `
-<div class="channels-page">
+<div class="page">
   <div class="page-header">
-    <h1>Channels</h1>
-    <a href="/channels/add" class="btn btn-primary">Add Channel</a>
+    <div class="page-header-content">
+      <h1 class="page-title">Channels</h1>
+      <p class="page-subtitle">Manage your connected Twitch channels</p>
+    </div>
+    <div class="page-header-actions">
+      <a href="/channels/add" class="btn btn-primary">Add Channel</a>
+    </div>
   </div>
 
-  ${typeof channels !== 'undefined' && channels.length > 0 ? `
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Channel</th>
-          <th>Status</th>
-          <th>Commands</th>
-          <th>Counters</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${channels.map(channel => {
-          const escapeHtml = (str) => {
-            if (!str) return '';
-            return String(str)
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/"/g, '&quot;')
-              .replace(/'/g, '&#39;');
-          };
-          const displayName = escapeHtml(channel.display_name || channel.twitch_username);
-          const username = escapeHtml(channel.twitch_username);
-          const statusClass = channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected';
-          const statusText = channel.is_active ? escapeHtml(channel.status.status) : 'inactive';
-          return `
-        <tr class="${channel.is_active ? '' : 'inactive'}">
-          <td>
-            <strong>${displayName}</strong>
-            <br><small>@${username}</small>
-          </td>
-          <td>
-            <span class="status-badge ${statusClass}">
-              ${statusText}
-            </span>
-          </td>
-          <td>${channel.commandCount}</td>
-          <td>${channel.counterCount}</td>
-          <td class="actions">
-            <a href="/channels/${channel.id}" class="btn btn-small">Manage</a>
-            <a href="/channels/${channel.id}/commands" class="btn btn-small btn-secondary">Commands</a>
-            <a href="/channels/${channel.id}/counters" class="btn btn-small btn-secondary">Counters</a>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
+  <div class="page-content">
+    ${typeof channels !== 'undefined' && channels.length > 0 ? `
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Status</th>
+              <th>Commands</th>
+              <th>Counters</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${channels.map(channel => {
+              const escapeHtml = (str) => {
+                if (!str) return '';
+                return String(str)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;');
+              };
+              const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+              const username = escapeHtml(channel.twitch_username);
+              const isConnected = channel.status.status === 'connected';
+              const isActive = channel.is_active;
+              const statusText = isActive ? escapeHtml(channel.status.status) : 'inactive';
+              return `
+            <tr class="${isActive ? '' : 'row-muted'}">
+              <td>
+                <div class="text-primary font-medium">${displayName}</div>
+                <div class="text-secondary text-sm">@${username}</div>
+              </td>
+              <td>
+                <span class="badge ${isConnected && isActive ? 'badge-success' : 'badge-error'}">
+                  ${statusText}
+                </span>
+              </td>
+              <td>${channel.commandCount}</td>
+              <td>${channel.counterCount}</td>
+              <td>
+                <div class="btn-group">
+                  <a href="/channels/${channel.id}" class="btn btn-sm">Manage</a>
+                  <a href="/channels/${channel.id}/commands" class="btn btn-sm btn-secondary">Commands</a>
+                  <a href="/channels/${channel.id}/counters" class="btn btn-sm btn-secondary">Counters</a>
+                </div>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8"/>
+            <path d="M12 17v4"/>
+          </svg>
+          <h3>No channels configured</h3>
+          <p>Get started by adding your first Twitch channel.</p>
+          <a href="/channels/add" class="btn btn-primary mt-4">Add Your First Channel</a>
+        </div>
+      </div>
+    </div>
+    `}
   </div>
-  ` : `
-  <div class="empty-state">
-    <p>No channels configured yet.</p>
-    <a href="/channels/add" class="btn btn-primary">Add Your First Channel</a>
-  </div>
-  `}
 </div>
-` }) %>
+`, activePage: 'channels' }) %>

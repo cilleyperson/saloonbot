@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="commands-page">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -14,72 +14,89 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
-      <h1>Commands</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">Commands</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
-    <a href="/channels/${channel.id}/commands/new" class="btn btn-primary">Add Command</a>
+    <div class="page-header-actions">
+      <a href="/channels/${channel.id}/commands/new" class="btn btn-primary">Add Command</a>
+    </div>
   </div>
 
-  ${commands.length > 0 ? `
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Command</th>
-          <th>Response</th>
-          <th>Cooldown</th>
-          <th>Level</th>
-          <th>Uses</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${commands.map(cmd => {
-          const cmdName = escapeHtml(cmd.command_name);
-          const cmdResponse = escapeHtml(cmd.response);
-          const cmdUserLevel = escapeHtml(cmd.user_level);
-          return `
-        <tr class="${cmd.is_enabled ? '' : 'disabled'}">
-          <td><code>!${cmdName}</code></td>
-          <td class="truncate" title="${cmd.response_mode === 'random' ? 'Random responses' : cmdResponse}">
-            ${cmd.response_mode === 'random' ? '<span class="badge badge-info">Random</span>' : cmdResponse}
-          </td>
-          <td>${cmd.cooldown_seconds}s</td>
-          <td>${cmdUserLevel}</td>
-          <td>${cmd.use_count}</td>
-          <td>
-            <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
-              ${cmd.is_enabled ? 'enabled' : 'disabled'}
-            </span>
-          </td>
-          <td class="actions">
-            <a href="/channels/${channel.id}/commands/${cmd.id}/edit" class="btn btn-small">Edit</a>
-            ${cmd.response_mode === 'random' ? `<a href="/channels/${channel.id}/commands/${cmd.id}/responses" class="btn btn-small btn-secondary">Responses</a>` : ''}
-            <form action="/channels/${channel.id}/commands/${cmd.id}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
-            </form>
-            <form action="/channels/${channel.id}/commands/${cmd.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this command?')">Delete</button>
-            </form>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
+  <div class="page-content">
+    ${commands.length > 0 ? `
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Response</th>
+              <th>Cooldown</th>
+              <th>Level</th>
+              <th>Uses</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${commands.map(cmd => {
+              const cmdName = escapeHtml(cmd.command_name);
+              const cmdResponse = escapeHtml(cmd.response);
+              const cmdUserLevel = escapeHtml(cmd.user_level);
+              return `
+            <tr class="${cmd.is_enabled ? '' : 'row-muted'}">
+              <td><code>!${cmdName}</code></td>
+              <td class="text-truncate" title="${cmd.response_mode === 'random' ? 'Random responses' : cmdResponse}">
+                ${cmd.response_mode === 'random' ? '<span class="badge badge-info">Random</span>' : cmdResponse}
+              </td>
+              <td>${cmd.cooldown_seconds}s</td>
+              <td><span class="badge badge-secondary">${cmdUserLevel}</span></td>
+              <td>${cmd.use_count}</td>
+              <td>
+                <span class="badge ${cmd.is_enabled ? 'badge-success' : 'badge-error'}">
+                  ${cmd.is_enabled ? 'enabled' : 'disabled'}
+                </span>
+              </td>
+              <td>
+                <div class="btn-group">
+                  <a href="/channels/${channel.id}/commands/${cmd.id}/edit" class="btn btn-sm">Edit</a>
+                  ${cmd.response_mode === 'random' ? `<a href="/channels/${channel.id}/commands/${cmd.id}/responses" class="btn btn-sm btn-secondary">Responses</a>` : ''}
+                  <form action="/channels/${channel.id}/commands/${cmd.id}/toggle" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
+                  </form>
+                  <form action="/channels/${channel.id}/commands/${cmd.id}/delete" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this command?')">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          <h3>No commands yet</h3>
+          <p>Create your first custom command to get started.</p>
+          <a href="/channels/${channel.id}/commands/new" class="btn btn-primary mt-4">Create Your First Command</a>
+        </div>
+      </div>
+    </div>
+    `}
   </div>
-  ` : `
-  <div class="empty-state">
-    <p>No commands yet.</p>
-    <a href="/channels/${channel.id}/commands/new" class="btn btn-primary">Create Your First Command</a>
-  </div>
-  `}
     `;
   })()}
 </div>
-` }) %>
+`, activePage: 'commands', channel: channel }) %>

@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="counters-page">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -14,74 +14,95 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
-      <h1>Counters</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">Counters</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
-    <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Add Counter</a>
+    <div class="page-header-actions">
+      <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Add Counter</a>
+    </div>
   </div>
 
-  ${counters.length > 0 ? `
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Counter</th>
-          <th>Current Count</th>
-          <th>Response Template</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${counters.map(cnt => {
-          const cntName = escapeHtml(cnt.counter_name);
-          const cntTemplate = escapeHtml(cnt.response_template);
-          return `
-        <tr class="${cnt.is_enabled ? '' : 'disabled'}">
-          <td><code>${cntName}++</code></td>
-          <td><strong>${cnt.current_count}</strong></td>
-          <td class="truncate" title="${cntTemplate}">${cntTemplate}</td>
-          <td>
-            <span class="status-badge ${cnt.is_enabled ? 'status-connected' : 'status-disconnected'}">
-              ${cnt.is_enabled ? 'enabled' : 'disabled'}
-            </span>
-          </td>
-          <td class="actions">
-            <a href="/channels/${channel.id}/counters/${cnt.id}/edit" class="btn btn-small">Edit</a>
-            <form action="/channels/${channel.id}/counters/${cnt.id}/reset" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-secondary" onclick="return confirm('Reset this counter to 0?')">Reset</button>
-            </form>
-            <form action="/channels/${channel.id}/counters/${cnt.id}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-secondary">${cnt.is_enabled ? 'Disable' : 'Enable'}</button>
-            </form>
-            <form action="/channels/${channel.id}/counters/${cnt.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this counter?')">Delete</button>
-            </form>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-  </div>
-  ` : `
-  <div class="empty-state">
-    <p>No counters yet.</p>
-    <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Create Your First Counter</a>
-  </div>
-  `}
+  <div class="page-content">
+    ${counters.length > 0 ? `
+    <div class="card mb-6">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Counter</th>
+              <th>Current Count</th>
+              <th>Response Template</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${counters.map(cnt => {
+              const cntName = escapeHtml(cnt.counter_name);
+              const cntTemplate = escapeHtml(cnt.response_template);
+              return `
+            <tr class="${cnt.is_enabled ? '' : 'row-muted'}">
+              <td><code>${cntName}++</code></td>
+              <td><strong>${cnt.current_count}</strong></td>
+              <td class="text-truncate" title="${cntTemplate}">${cntTemplate}</td>
+              <td>
+                <span class="badge ${cnt.is_enabled ? 'badge-success' : 'badge-error'}">
+                  ${cnt.is_enabled ? 'enabled' : 'disabled'}
+                </span>
+              </td>
+              <td>
+                <div class="btn-group">
+                  <a href="/channels/${channel.id}/counters/${cnt.id}/edit" class="btn btn-sm">Edit</a>
+                  <form action="/channels/${channel.id}/counters/${cnt.id}/reset" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Reset this counter to 0?')">Reset</button>
+                  </form>
+                  <form action="/channels/${channel.id}/counters/${cnt.id}/toggle" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-secondary">${cnt.is_enabled ? 'Disable' : 'Enable'}</button>
+                  </form>
+                  <form action="/channels/${channel.id}/counters/${cnt.id}/delete" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this counter?')">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card mb-6">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <h3>No counters yet</h3>
+          <p>Create your first counter to track things in chat.</p>
+          <a href="/channels/${channel.id}/counters/new" class="btn btn-primary mt-4">Create Your First Counter</a>
+        </div>
+      </div>
+    </div>
+    `}
 
-  <section class="info-box">
-    <h3>How Counters Work</h3>
-    <p>When a viewer types <code>countername++</code> in chat, the bot will increment the counter and display the current count.</p>
-    <p>Example: If you create a counter called "death", viewers can type <code>death++</code> and the bot will respond with the current death count.</p>
-  </section>
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">How Counters Work</h3>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary">When a viewer types <code>countername++</code> in chat, the bot will increment the counter and display the current count.</p>
+        <p class="text-secondary mt-2">Example: If you create a counter called "death", viewers can type <code>death++</code> and the bot will respond with the current death count.</p>
+      </div>
+    </div>
+  </div>
     `;
   })()}
 </div>
-` }) %>
+`, activePage: 'counters', channel: channel }) %>

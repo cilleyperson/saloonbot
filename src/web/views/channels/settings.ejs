@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="channel-settings">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -18,79 +18,88 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
-      <h1>Settings</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">Settings</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
   </div>
 
-  <form action="/channels/${channel.id}/settings" method="POST" class="settings-form">
-    <input type="hidden" name="_csrf" value="${csrfToken}">
-    <section class="card">
-      <h2>Raid Shoutouts</h2>
-      <p class="description">Automatically send a message when someone raids your channel.</p>
+  <div class="page-content">
+    <form action="/channels/${channel.id}/settings" method="POST">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
 
-      <div class="form-group">
-        <label class="toggle">
-          <input type="checkbox" name="raid_shoutout_enabled" ${settings.raid_shoutout_enabled ? 'checked' : ''}>
-          <span class="toggle-slider"></span>
-          Enable raid shoutouts
-        </label>
+      <div class="card mb-6">
+        <div class="card-header">
+          <h3 class="card-title">Raid Shoutouts</h3>
+        </div>
+        <div class="card-body">
+          <p class="text-secondary mb-4">Automatically send a message when someone raids your channel.</p>
+
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" name="raid_shoutout_enabled" ${settings.raid_shoutout_enabled ? 'checked' : ''}>
+              <span class="form-checkbox-label">Enable raid shoutouts</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="raid_shoutout_template" class="form-label">Shoutout Message</label>
+            <textarea name="raid_shoutout_template" id="raid_shoutout_template" rows="3" class="form-input">${raidTemplate}</textarea>
+            <p class="form-hint">
+              Variables: <code>{raider}</code> <code>{raider_display}</code> <code>{viewers}</code> <code>{game}</code>
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="raid_shoutout_template">Shoutout Message</label>
-        <textarea name="raid_shoutout_template" id="raid_shoutout_template" rows="3" class="form-control">${raidTemplate}</textarea>
-        <small class="form-help">
-          Variables: <code>{raider}</code> <code>{raider_display}</code> <code>{viewers}</code> <code>{game}</code>
-        </small>
+      <div class="card mb-6">
+        <div class="card-header">
+          <h3 class="card-title">Subscription Notifications</h3>
+        </div>
+        <div class="card-body">
+          <p class="text-secondary mb-4">Automatically thank subscribers when they subscribe.</p>
+
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" name="sub_notification_enabled" ${settings.sub_notification_enabled ? 'checked' : ''}>
+              <span class="form-checkbox-label">Enable subscription notifications</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="sub_notification_template" class="form-label">New Subscriber Message</label>
+            <textarea name="sub_notification_template" id="sub_notification_template" rows="2" class="form-input">${subTemplate}</textarea>
+            <p class="form-hint">
+              Variables: <code>{subscriber}</code> <code>{subscriber_display}</code> <code>{tier}</code>
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="resub_notification_template" class="form-label">Resub Message</label>
+            <textarea name="resub_notification_template" id="resub_notification_template" rows="2" class="form-input">${resubTemplate}</textarea>
+            <p class="form-hint">
+              Variables: <code>{subscriber}</code> <code>{months}</code> <code>{streak}</code> <code>{tier}</code> <code>{message}</code>
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="gift_sub_notification_template" class="form-label">Gift Sub Message</label>
+            <textarea name="gift_sub_notification_template" id="gift_sub_notification_template" rows="2" class="form-input">${giftSubTemplate}</textarea>
+            <p class="form-hint">
+              Variables: <code>{gifter}</code> <code>{gift_count}</code> <code>{tier}</code>
+            </p>
+          </div>
+        </div>
       </div>
-    </section>
 
-    <section class="card">
-      <h2>Subscription Notifications</h2>
-      <p class="description">Automatically thank subscribers when they subscribe.</p>
-
-      <div class="form-group">
-        <label class="toggle">
-          <input type="checkbox" name="sub_notification_enabled" ${settings.sub_notification_enabled ? 'checked' : ''}>
-          <span class="toggle-slider"></span>
-          Enable subscription notifications
-        </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <a href="/channels/${channel.id}" class="btn btn-secondary">Cancel</a>
       </div>
-
-      <div class="form-group">
-        <label for="sub_notification_template">New Subscriber Message</label>
-        <textarea name="sub_notification_template" id="sub_notification_template" rows="2" class="form-control">${subTemplate}</textarea>
-        <small class="form-help">
-          Variables: <code>{subscriber}</code> <code>{subscriber_display}</code> <code>{tier}</code>
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label for="resub_notification_template">Resub Message</label>
-        <textarea name="resub_notification_template" id="resub_notification_template" rows="2" class="form-control">${resubTemplate}</textarea>
-        <small class="form-help">
-          Variables: <code>{subscriber}</code> <code>{months}</code> <code>{streak}</code> <code>{tier}</code> <code>{message}</code>
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label for="gift_sub_notification_template">Gift Sub Message</label>
-        <textarea name="gift_sub_notification_template" id="gift_sub_notification_template" rows="2" class="form-control">${giftSubTemplate}</textarea>
-        <small class="form-help">
-          Variables: <code>{gifter}</code> <code>{gift_count}</code> <code>{tier}</code>
-        </small>
-      </div>
-    </section>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Save Settings</button>
-      <a href="/channels/${channel.id}" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
+    </form>
+  </div>
     `;
   })()}
 </div>
-` }) %>
+`, activePage: 'settings', channel: channel }) %>
