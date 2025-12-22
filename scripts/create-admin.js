@@ -111,50 +111,47 @@ function prompt(question, hidden = false) {
 async function main() {
   console.log('Saloon Bot - Admin User Creation\n');
 
+  // Username can be passed as argument, but password must always be interactive
+  // to avoid exposure in shell history and process lists
   let username = process.argv[2];
-  let password = process.argv[3];
+  let password;
 
-  // Interactive mode if no arguments provided
-  if (!username || !password) {
-    console.log('Interactive mode: Enter admin credentials\n');
-
-    // Get username
+  // Get username (from arg or prompt)
+  if (!username) {
     username = await prompt('Username: ');
-    const usernameValidation = validateUsername(username);
-    if (!usernameValidation.valid) {
-      console.error('\nUsername validation failed:');
-      usernameValidation.errors.forEach(err => console.error(`  - ${err}`));
-      process.exit(1);
-    }
-
-    // Get password
-    password = await prompt('Password: ', true);
-    const passwordConfirm = await prompt('Confirm Password: ', true);
-
-    if (password !== passwordConfirm) {
-      console.error('\nError: Passwords do not match');
-      process.exit(1);
-    }
+  } else {
+    console.log(`Username: ${username}`);
   }
 
   // Validate username
   const usernameValidation = validateUsername(username);
   if (!usernameValidation.valid) {
-    console.error('Username validation failed:');
+    console.error('\nUsername validation failed:');
     usernameValidation.errors.forEach(err => console.error(`  - ${err}`));
     process.exit(1);
   }
 
-  // Validate password
+  // Password is ALWAYS prompted interactively for security
+  // Never accept password via command line to avoid shell history exposure
+  password = await prompt('Password: ', true);
+
+  // Validate password before asking for confirmation
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.valid) {
-    console.error('Password validation failed:');
+    console.error('\nPassword validation failed:');
     passwordValidation.errors.forEach(err => console.error(`  - ${err}`));
     console.error('\nPassword requirements:');
     console.error('  - Minimum 12 characters');
     console.error('  - At least one uppercase letter');
     console.error('  - At least one lowercase letter');
     console.error('  - At least one number');
+    process.exit(1);
+  }
+
+  // Confirm password
+  const passwordConfirm = await prompt('Confirm Password: ', true);
+  if (password !== passwordConfirm) {
+    console.error('\nError: Passwords do not match');
     process.exit(1);
   }
 

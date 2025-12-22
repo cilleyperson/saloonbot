@@ -143,12 +143,14 @@ The database is automatically created and initialized on first run. No manual se
 Create an admin user to access the web interface:
 
 ```bash
-# Interactive mode (recommended)
+# Fully interactive (prompts for username and password)
 npm run create-admin
 
-# Command-line mode
-npm run create-admin <username> <password>
+# With username (password prompted securely)
+npm run create-admin <username>
 ```
+
+**Note:** Passwords are always entered interactively and never via command line to prevent exposure in shell history and process lists.
 
 **Password Requirements:**
 - Minimum 12 characters
@@ -156,12 +158,8 @@ npm run create-admin <username> <password>
 - At least one lowercase letter
 - At least one number
 
-**Example:**
-```bash
-npm run create-admin admin MySecurePass123
-```
-
 The script will:
+- Prompt for password with hidden input
 - Validate password strength
 - Hash the password with bcrypt (cost factor 12)
 - Create the admin user in the database
