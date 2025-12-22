@@ -29,7 +29,7 @@
   <div class="card">
     <h3>Add Custom Definition</h3>
     <form action="/channels/${channel.id}/predefined/define/definitions" method="POST" class="form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
       <div class="form-row">
         <div class="form-group">
           <label for="word">Word</label>
@@ -71,7 +71,7 @@
           <td class="truncate" title="${definition}">${definition}</td>
           <td class="actions">
             <form action="/channels/${channel.id}/predefined/define/definitions/${def.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this definition?')">Delete</button>
             </form>
           </td>

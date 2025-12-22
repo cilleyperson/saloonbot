@@ -25,7 +25,7 @@
   <div class="card">
     <h3>Add New Response</h3>
     <form action="/channels/${channel.id}/commands/${command.id}/responses" method="POST" class="add-response-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
       <div class="form-group">
         <label for="response_text">Response Text</label>
         <textarea name="response_text" id="response_text" rows="3" class="form-control" required></textarea>
@@ -66,7 +66,7 @@
           <tr class="${resp.is_enabled ? '' : 'disabled'}" id="response-${resp.id}">
             <td>
               <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}" method="POST" class="inline-edit-form">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="_csrf" value="${csrfToken}">
                 <textarea name="response_text" rows="2" class="form-control" required>${respText}</textarea>
             </td>
             <td>
@@ -82,7 +82,7 @@
                 <button type="submit" class="btn btn-small btn-primary">Save</button>
               </form>
               <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}/delete" method="POST" class="inline-form">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="_csrf" value="${csrfToken}">
                 <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
               </form>
             </td>

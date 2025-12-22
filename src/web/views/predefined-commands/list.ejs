@@ -59,7 +59,7 @@
           <td class="actions">
             <a href="/channels/${channel.id}/predefined/${cmdName}" class="btn btn-small">Configure</a>
             <form action="/channels/${channel.id}/predefined/${cmdName}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
             </form>
             ${cmd.command_name === 'ball' ? `

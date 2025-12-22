@@ -22,7 +22,7 @@
   </div>
 
   <form action="/channels/${channel.id}/chats" method="POST" class="card">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="_csrf" value="${csrfToken}">
     <div class="form-group">
       <label for="target_channel">Channel to Join</label>
       <div class="input-prefix">

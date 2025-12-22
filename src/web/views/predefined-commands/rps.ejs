@@ -63,7 +63,7 @@
           <td>${stats.best_streak}</td>
           <td class="actions">
             <form action="/channels/${channel.id}/predefined/rps/stats/${stats.user_id}/reset" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Reset this user\\'s stats?')">Reset</button>
             </form>
           </td>

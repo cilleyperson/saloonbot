@@ -39,7 +39,7 @@
   <div class="card">
     <h3>Add New Response</h3>
     <form action="/channels/${channel.id}/predefined/ball/responses" method="POST" class="form form-inline">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
       <div class="form-group">
         <input type="text" name="response_text" placeholder="Enter response text..." required>
       </div>
@@ -81,11 +81,11 @@
           </td>
           <td class="actions">
             <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-secondary">${resp.is_active ? 'Disable' : 'Enable'}</button>
             </form>
             <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
             </form>
           </td>

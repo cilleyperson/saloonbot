@@ -59,11 +59,11 @@
             <a href="/channels/${channel.id}/commands/${cmd.id}/edit" class="btn btn-small">Edit</a>
             ${cmd.response_mode === 'random' ? `<a href="/channels/${channel.id}/commands/${cmd.id}/responses" class="btn btn-small btn-secondary">Responses</a>` : ''}
             <form action="/channels/${channel.id}/commands/${cmd.id}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
             </form>
             <form action="/channels/${channel.id}/commands/${cmd.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this command?')">Delete</button>
             </form>
           </td>

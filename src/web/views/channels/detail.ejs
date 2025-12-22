@@ -128,17 +128,17 @@
     <div class="button-group">
       ${channel.is_active ? `
       <form action="/channels/${channel.id}/disconnect" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
         <button type="submit" class="btn btn-warning" onclick="return confirm('Disconnect this channel?')">Disconnect Channel</button>
       </form>
       ` : `
       <form action="/channels/${channel.id}/reconnect" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
         <button type="submit" class="btn btn-primary">Reconnect Channel</button>
       </form>
       `}
       <form action="/channels/${channel.id}/delete" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
         <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this channel and all its data? This cannot be undone!')">Delete Channel</button>
       </form>
     </div>
