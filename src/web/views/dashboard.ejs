@@ -50,22 +50,37 @@
           </tr>
         </thead>
         <tbody>
-          ${channels.map(channel => `
+          ${channels.map(channel => {
+            const escapeHtml = (str) => {
+              if (!str) return '';
+              return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+            };
+            const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+            const username = escapeHtml(channel.twitch_username);
+            const statusClass = channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected';
+            const statusText = escapeHtml(channel.status.status);
+            return `
           <tr>
             <td>
-              <strong>${channel.display_name || channel.twitch_username}</strong>
-              <br><small>@${channel.twitch_username}</small>
+              <strong>${displayName}</strong>
+              <br><small>@${username}</small>
             </td>
             <td>
-              <span class="status-badge ${channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected'}">
-                ${channel.status.status}
+              <span class="status-badge ${statusClass}">
+                ${statusText}
               </span>
             </td>
             <td>
               <a href="/channels/${channel.id}" class="btn btn-small">Manage</a>
             </td>
           </tr>
-          `).join('')}
+            `;
+          }).join('')}
         </tbody>
       </table>
     </div>

@@ -1,10 +1,23 @@
 <%- include('../layout', { body: `
 <div class="counters-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
       <h1>Counters</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
     <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Add Counter</a>
   </div>
@@ -22,11 +35,14 @@
         </tr>
       </thead>
       <tbody>
-        ${counters.map(cnt => `
+        ${counters.map(cnt => {
+          const cntName = escapeHtml(cnt.counter_name);
+          const cntTemplate = escapeHtml(cnt.response_template);
+          return `
         <tr class="${cnt.is_enabled ? '' : 'disabled'}">
-          <td><code>${cnt.counter_name}++</code></td>
+          <td><code>${cntName}++</code></td>
           <td><strong>${cnt.current_count}</strong></td>
-          <td class="truncate" title="${cnt.response_template.replace(/"/g, '&quot;')}">${cnt.response_template}</td>
+          <td class="truncate" title="${cntTemplate}">${cntTemplate}</td>
           <td>
             <span class="status-badge ${cnt.is_enabled ? 'status-connected' : 'status-disconnected'}">
               ${cnt.is_enabled ? 'enabled' : 'disabled'}
@@ -35,17 +51,21 @@
           <td class="actions">
             <a href="/channels/${channel.id}/counters/${cnt.id}/edit" class="btn btn-small">Edit</a>
             <form action="/channels/${channel.id}/counters/${cnt.id}/reset" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-secondary" onclick="return confirm('Reset this counter to 0?')">Reset</button>
             </form>
             <form action="/channels/${channel.id}/counters/${cnt.id}/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-secondary">${cnt.is_enabled ? 'Disable' : 'Enable'}</button>
             </form>
             <form action="/channels/${channel.id}/counters/${cnt.id}/delete" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this counter?')">Delete</button>
             </form>
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
@@ -61,5 +81,7 @@
     <p>When a viewer types <code>countername++</code> in chat, the bot will increment the counter and display the current count.</p>
     <p>Example: If you create a counter called "death", viewers can type <code>death++</code> and the bot will respond with the current death count.</p>
   </section>
+    `;
+  })()}
 </div>
 ` }) %>

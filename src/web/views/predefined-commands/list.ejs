@@ -1,10 +1,23 @@
 <%- include('../layout', { body: `
 <div class="predefined-commands-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
       <h1>Predefined Commands</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
@@ -25,13 +38,18 @@
         </tr>
       </thead>
       <tbody>
-        ${commands.map(cmd => `
+        ${commands.map(cmd => {
+          const cmdName = escapeHtml(cmd.command_name);
+          const cmdEmoji = cmd.info?.emoji ? escapeHtml(cmd.info.emoji) : '';
+          const cmdTrigger = cmd.info?.trigger ? escapeHtml(cmd.info.trigger) : '!' + cmdName;
+          const cmdDesc = cmd.info?.description ? escapeHtml(cmd.info.description) : '';
+          return `
         <tr class="${cmd.is_enabled ? '' : 'disabled'}">
           <td>
-            <span class="command-emoji">${cmd.info?.emoji || ''}</span>
-            <code>${cmd.info?.trigger || '!' + cmd.command_name}</code>
+            <span class="command-emoji">${cmdEmoji}</span>
+            <code>${cmdTrigger}</code>
           </td>
-          <td>${cmd.info?.description || ''}</td>
+          <td>${cmdDesc}</td>
           <td>
             <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
               ${cmd.is_enabled ? 'enabled' : 'disabled'}
@@ -39,8 +57,9 @@
           </td>
           <td>${cmd.cooldown_seconds}s</td>
           <td class="actions">
-            <a href="/channels/${channel.id}/predefined/${cmd.command_name}" class="btn btn-small">Configure</a>
-            <form action="/channels/${channel.id}/predefined/${cmd.command_name}/toggle" method="POST" class="inline-form">
+            <a href="/channels/${channel.id}/predefined/${cmdName}" class="btn btn-small">Configure</a>
+            <form action="/channels/${channel.id}/predefined/${cmdName}/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
             </form>
             ${cmd.command_name === 'ball' ? `
@@ -54,10 +73,13 @@
             ` : ''}
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
+    `;
+  })()}
 </div>
 
 <style>

@@ -1,7 +1,63 @@
 const { getDb } = require('../index');
 const { createChildLogger } = require('../../utils/logger');
+const { encrypt, decrypt, isEncrypted } = require('../../utils/crypto');
+const config = require('../../config/index');
 
 const logger = createChildLogger('auth-repo');
+
+// ==================== Token Encryption Helpers ====================
+
+/**
+ * Encrypt a token if encryption key is available
+ * @param {string} token - Token to encrypt
+ * @returns {string} Encrypted token or original if no key
+ */
+function encryptToken(token) {
+  if (!token) return token;
+
+  const encryptionKey = config.security?.tokenEncryptionKey;
+  if (!encryptionKey) {
+    // No encryption key configured - return token as-is
+    logger.debug('No encryption key configured, storing token in plaintext');
+    return token;
+  }
+
+  try {
+    return encrypt(token, encryptionKey);
+  } catch (error) {
+    logger.error('Failed to encrypt token:', error);
+    throw new Error('Token encryption failed');
+  }
+}
+
+/**
+ * Decrypt a token if it's encrypted, otherwise return as-is
+ * @param {string} token - Token to decrypt
+ * @returns {string} Decrypted token or original
+ */
+function decryptToken(token) {
+  if (!token) return token;
+
+  const encryptionKey = config.security?.tokenEncryptionKey;
+  if (!encryptionKey) {
+    // No encryption key configured - return token as-is
+    return token;
+  }
+
+  // Check if token is encrypted
+  if (!isEncrypted(token)) {
+    // Legacy unencrypted token - return as-is for backward compatibility
+    logger.debug('Found unencrypted token (legacy data)');
+    return token;
+  }
+
+  try {
+    return decrypt(token, encryptionKey);
+  } catch (error) {
+    logger.error('Failed to decrypt token:', error);
+    throw new Error('Token decryption failed');
+  }
+}
 
 // ==================== Channel Auth ====================
 
@@ -17,6 +73,10 @@ function saveChannelAuth(channelId, tokens) {
 
   const scopesStr = Array.isArray(scopes) ? scopes.join(' ') : scopes;
 
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
   const stmt = db.prepare(`
     INSERT INTO channel_auth (channel_id, access_token, refresh_token, scopes, expires_at)
     VALUES (?, ?, ?, ?, ?)
@@ -28,7 +88,7 @@ function saveChannelAuth(channelId, tokens) {
       updated_at = CURRENT_TIMESTAMP
   `);
 
-  stmt.run(channelId, accessToken, refreshToken, scopesStr, expiresAt || null);
+  stmt.run(channelId, encryptedAccessToken, encryptedRefreshToken, scopesStr, expiresAt || null);
   logger.info(`Saved channel auth for channel ${channelId}`);
 
   return getChannelAuth(channelId);
@@ -44,6 +104,9 @@ function getChannelAuth(channelId) {
   const auth = db.prepare('SELECT * FROM channel_auth WHERE channel_id = ?').get(channelId);
 
   if (auth) {
+    // Decrypt tokens
+    auth.access_token = decryptToken(auth.access_token);
+    auth.refresh_token = decryptToken(auth.refresh_token);
     auth.scopes = auth.scopes ? auth.scopes.split(' ') : [];
   }
 
@@ -60,13 +123,17 @@ function updateChannelAuth(channelId, tokens) {
   const db = getDb();
   const { accessToken, refreshToken, expiresAt } = tokens;
 
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
   const stmt = db.prepare(`
     UPDATE channel_auth
     SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
     WHERE channel_id = ?
   `);
 
-  stmt.run(accessToken, refreshToken, expiresAt || null, channelId);
+  stmt.run(encryptedAccessToken, encryptedRefreshToken, expiresAt || null, channelId);
   logger.debug(`Updated channel auth for channel ${channelId}`);
 
   return getChannelAuth(channelId);
@@ -99,6 +166,9 @@ function getAllChannelAuths() {
 
   return auths.map(auth => ({
     ...auth,
+    // Decrypt tokens
+    access_token: decryptToken(auth.access_token),
+    refresh_token: decryptToken(auth.refresh_token),
     scopes: auth.scopes ? auth.scopes.split(' ') : []
   }));
 }
@@ -116,6 +186,10 @@ function saveBotAuth(tokens) {
 
   const scopesStr = Array.isArray(scopes) ? scopes.join(' ') : scopes;
 
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
   // Delete existing bot auth and insert new
   db.prepare('DELETE FROM bot_auth').run();
 
@@ -124,7 +198,7 @@ function saveBotAuth(tokens) {
     VALUES (?, ?, ?, ?, ?)
   `);
 
-  stmt.run(botUsername, accessToken, refreshToken, scopesStr, expiresAt || null);
+  stmt.run(botUsername, encryptedAccessToken, encryptedRefreshToken, scopesStr, expiresAt || null);
   logger.info(`Saved bot auth for ${botUsername}`);
 
   return getBotAuth();
@@ -139,6 +213,9 @@ function getBotAuth() {
   const auth = db.prepare('SELECT * FROM bot_auth ORDER BY id DESC LIMIT 1').get();
 
   if (auth) {
+    // Decrypt tokens
+    auth.access_token = decryptToken(auth.access_token);
+    auth.refresh_token = decryptToken(auth.refresh_token);
     auth.scopes = auth.scopes ? auth.scopes.split(' ') : [];
   }
 
@@ -154,13 +231,17 @@ function updateBotAuth(tokens) {
   const db = getDb();
   const { accessToken, refreshToken, expiresAt } = tokens;
 
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
   const stmt = db.prepare(`
     UPDATE bot_auth
     SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = (SELECT id FROM bot_auth ORDER BY id DESC LIMIT 1)
   `);
 
-  stmt.run(accessToken, refreshToken, expiresAt || null);
+  stmt.run(encryptedAccessToken, encryptedRefreshToken, expiresAt || null);
   logger.debug('Updated bot auth tokens');
 
   return getBotAuth();

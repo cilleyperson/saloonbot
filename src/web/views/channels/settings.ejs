@@ -1,14 +1,32 @@
 <%- include('../layout', { body: `
 <div class="channel-settings">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const raidTemplate = escapeHtml(settings.raid_shoutout_template);
+    const subTemplate = escapeHtml(settings.sub_notification_template);
+    const resubTemplate = escapeHtml(settings.resub_notification_template);
+    const giftSubTemplate = escapeHtml(settings.gift_sub_notification_template);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
       <h1>Settings</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
   <form action="/channels/${channel.id}/settings" method="POST" class="settings-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <section class="card">
       <h2>Raid Shoutouts</h2>
       <p class="description">Automatically send a message when someone raids your channel.</p>
@@ -23,7 +41,7 @@
 
       <div class="form-group">
         <label for="raid_shoutout_template">Shoutout Message</label>
-        <textarea name="raid_shoutout_template" id="raid_shoutout_template" rows="3" class="form-control">${settings.raid_shoutout_template}</textarea>
+        <textarea name="raid_shoutout_template" id="raid_shoutout_template" rows="3" class="form-control">${raidTemplate}</textarea>
         <small class="form-help">
           Variables: <code>{raider}</code> <code>{raider_display}</code> <code>{viewers}</code> <code>{game}</code>
         </small>
@@ -44,7 +62,7 @@
 
       <div class="form-group">
         <label for="sub_notification_template">New Subscriber Message</label>
-        <textarea name="sub_notification_template" id="sub_notification_template" rows="2" class="form-control">${settings.sub_notification_template}</textarea>
+        <textarea name="sub_notification_template" id="sub_notification_template" rows="2" class="form-control">${subTemplate}</textarea>
         <small class="form-help">
           Variables: <code>{subscriber}</code> <code>{subscriber_display}</code> <code>{tier}</code>
         </small>
@@ -52,7 +70,7 @@
 
       <div class="form-group">
         <label for="resub_notification_template">Resub Message</label>
-        <textarea name="resub_notification_template" id="resub_notification_template" rows="2" class="form-control">${settings.resub_notification_template}</textarea>
+        <textarea name="resub_notification_template" id="resub_notification_template" rows="2" class="form-control">${resubTemplate}</textarea>
         <small class="form-help">
           Variables: <code>{subscriber}</code> <code>{months}</code> <code>{streak}</code> <code>{tier}</code> <code>{message}</code>
         </small>
@@ -60,7 +78,7 @@
 
       <div class="form-group">
         <label for="gift_sub_notification_template">Gift Sub Message</label>
-        <textarea name="gift_sub_notification_template" id="gift_sub_notification_template" rows="2" class="form-control">${settings.gift_sub_notification_template}</textarea>
+        <textarea name="gift_sub_notification_template" id="gift_sub_notification_template" rows="2" class="form-control">${giftSubTemplate}</textarea>
         <small class="form-help">
           Variables: <code>{gifter}</code> <code>{gift_count}</code> <code>{tier}</code>
         </small>
@@ -72,5 +90,7 @@
       <a href="/channels/${channel.id}" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
+    `;
+  })()}
 </div>
 ` }) %>

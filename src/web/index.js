@@ -1,5 +1,9 @@
 const express = require('express');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const csrf = require('csurf');
+const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -7,9 +11,13 @@ const http = require('http');
 const config = require('../config');
 const { createChildLogger } = require('../utils/logger');
 
+// Import middleware
+const { requireAuth, setLocals } = require('./middleware/auth');
+
 // Import routes
 const dashboardRoutes = require('./routes/dashboard');
 const authRoutes = require('./routes/auth');
+const loginRoutes = require('./routes/login');
 const channelRoutes = require('./routes/channels');
 const commandRoutes = require('./routes/commands');
 const counterRoutes = require('./routes/counters');
@@ -17,6 +25,33 @@ const chatMembershipRoutes = require('./routes/chat-memberships');
 const predefinedCommandRoutes = require('./routes/predefined-commands');
 
 const logger = createChildLogger('web');
+
+/**
+ * Global rate limiter - 100 requests per 15 minutes
+ */
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests, please try again later'
+});
+
+/**
+ * Auth route rate limiter - 10 requests per 15 minutes
+ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many authentication attempts, please try again later'
+});
+
+/**
+ * CSRF protection configuration
+ */
+const csrfProtection = csrf({ cookie: true });
 
 /**
  * Create and configure the Express application
@@ -29,9 +64,28 @@ function createApp() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
 
+  // Security headers - helmet should be one of the first middleware
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: []
+      }
+    }
+  }));
+
   // Middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '10kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+  // Cookie parser (required for CSRF with cookies)
+  app.use(cookieParser());
 
   // Session configuration
   app.use(session({
@@ -41,12 +95,22 @@ function createApp() {
     cookie: {
       secure: config.isProduction,
       httpOnly: true,
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   }));
 
+  // Set authentication locals for all templates
+  app.use(setLocals);
+
   // Static files
   app.use(express.static(path.join(__dirname, '../../public')));
+
+  // Global rate limiting
+  app.use(globalLimiter);
+
+  // CSRF protection (must come after cookie-parser and session)
+  app.use(csrfProtection);
 
   // Flash message middleware
   app.use((req, res, next) => {
@@ -77,14 +141,23 @@ function createApp() {
     next();
   });
 
-  // Routes
-  app.use('/', dashboardRoutes);
-  app.use('/auth', authRoutes);
-  app.use('/channels', channelRoutes);
-  app.use('/channels', commandRoutes);
-  app.use('/channels', counterRoutes);
-  app.use('/channels', chatMembershipRoutes);
-  app.use('/channels', predefinedCommandRoutes);
+  // Make CSRF token available to templates
+  app.use((req, res, next) => {
+    res.locals.csrfToken = req.csrfToken();
+    next();
+  });
+
+  // Routes - Public (no authentication required)
+  app.use('/auth', loginRoutes); // Login/logout routes
+  app.use('/auth', authLimiter, authRoutes); // OAuth callbacks for Twitch
+
+  // Routes - Protected (authentication required)
+  app.use('/', requireAuth, dashboardRoutes);
+  app.use('/channels', requireAuth, channelRoutes);
+  app.use('/channels', requireAuth, commandRoutes);
+  app.use('/channels', requireAuth, counterRoutes);
+  app.use('/channels', requireAuth, chatMembershipRoutes);
+  app.use('/channels', requireAuth, predefinedCommandRoutes);
 
   // 404 handler
   app.use((req, res) => {

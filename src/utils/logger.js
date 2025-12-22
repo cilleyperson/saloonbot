@@ -4,6 +4,56 @@ const config = require('../config');
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
+// Sensitive field names to redact from logs
+const sensitiveFields = ['password', 'token', 'access_token', 'refresh_token', 'secret', 'authorization', 'cookie'];
+
+/**
+ * Recursively redacts sensitive data from objects
+ * @param {*} obj - Object to redact sensitive data from
+ * @returns {*} - Copy of object with sensitive fields redacted
+ */
+function redactSensitive(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+
+  const redacted = Array.isArray(obj) ? [...obj] : { ...obj };
+
+  for (const key of Object.keys(redacted)) {
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
+      redacted[key] = '[REDACTED]';
+    } else if (typeof redacted[key] === 'object' && redacted[key] !== null) {
+      redacted[key] = redactSensitive(redacted[key]);
+    }
+  }
+
+  return redacted;
+}
+
+/**
+ * Winston format for redacting sensitive data
+ */
+const redactFormat = winston.format((info) => {
+  // Redact message if it's an object
+  if (typeof info.message === 'object') {
+    info.message = redactSensitive(info.message);
+  }
+
+  // Redact all metadata fields
+  const keysToRedact = Object.keys(info).filter(
+    key => !['level', 'message', 'timestamp', 'stack', Symbol.for('level'), Symbol.for('message'), Symbol.for('splat')].includes(key)
+  );
+
+  for (const key of keysToRedact) {
+    // Check if the key itself is sensitive
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
+      info[key] = '[REDACTED]';
+    } else if (typeof info[key] === 'object' && info[key] !== null) {
+      info[key] = redactSensitive(info[key]);
+    }
+  }
+
+  return info;
+})();
+
 // Custom format for console output
 const consoleFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
   let log = `${timestamp} [${level}]: ${message}`;
@@ -40,6 +90,7 @@ const transports = [
   // Console transport (always enabled)
   new winston.transports.Console({
     format: combine(
+      redactFormat,
       colorize(),
       timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       errors({ stack: true }),
@@ -56,6 +107,7 @@ if (config.isProduction) {
       filename: path.join('logs', 'error.log'),
       level: 'error',
       format: combine(
+        redactFormat,
         timestamp(),
         errors({ stack: true }),
         fileFormat
@@ -65,6 +117,7 @@ if (config.isProduction) {
     new winston.transports.File({
       filename: path.join('logs', 'combined.log'),
       format: combine(
+        redactFormat,
         timestamp(),
         errors({ stack: true }),
         fileFormat

@@ -1,14 +1,28 @@
 <%- include('../layout', { body: `
 <div class="chat-membership-form-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/chats" class="back-link">&larr; Back to Chat Memberships</a>
       <h1>Join Chat</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
   <form action="/channels/${channel.id}/chats" method="POST" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group">
       <label for="target_channel">Channel to Join</label>
       <div class="input-prefix">
@@ -38,5 +52,7 @@
       <li>Make sure the channel name is spelled correctly.</li>
     </ul>
   </div>
+    `;
+  })()}
 </div>
 ` }) %>

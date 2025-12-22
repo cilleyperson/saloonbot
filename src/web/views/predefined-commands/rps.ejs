@@ -1,10 +1,23 @@
 <%- include('../layout', { body: `
 <div class="rps-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>🎮 Rock Paper Scissors Leaderboard</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <h1>Rock Paper Scissors Leaderboard</h1>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
@@ -35,12 +48,14 @@
         </tr>
       </thead>
       <tbody>
-        ${leaderboard.map((stats, i) => `
+        ${leaderboard.map((stats, i) => {
+          const username = escapeHtml(stats.username);
+          return `
         <tr>
           <td>
-            ${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+            ${i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : i + 1}
           </td>
-          <td><strong>${stats.username}</strong></td>
+          <td><strong>${username}</strong></td>
           <td class="win">${stats.wins}</td>
           <td class="loss">${stats.losses}</td>
           <td>${stats.ties}</td>
@@ -48,11 +63,13 @@
           <td>${stats.best_streak}</td>
           <td class="actions">
             <form action="/channels/${channel.id}/predefined/rps/stats/${stats.user_id}/reset" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Reset this user\\'s stats?')">Reset</button>
             </form>
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
@@ -62,6 +79,8 @@
     <p>Users can play by typing <code>!rps rock</code>, <code>!rps paper</code>, or <code>!rps scissors</code> in chat.</p>
   </div>
   `}
+    `;
+  })()}
 </div>
 
 <style>

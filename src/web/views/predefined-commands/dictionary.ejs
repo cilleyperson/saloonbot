@@ -1,10 +1,23 @@
 <%- include('../layout', { body: `
 <div class="dictionary-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>📖 Custom Definitions</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <h1>Custom Definitions</h1>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
@@ -16,6 +29,7 @@
   <div class="card">
     <h3>Add Custom Definition</h3>
     <form action="/channels/${channel.id}/predefined/define/definitions" method="POST" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-row">
         <div class="form-group">
           <label for="word">Word</label>
@@ -46,18 +60,24 @@
         </tr>
       </thead>
       <tbody>
-        ${definitions.map(def => `
+        ${definitions.map(def => {
+          const word = escapeHtml(def.word);
+          const pos = escapeHtml(def.part_of_speech || '-');
+          const definition = escapeHtml(def.definition);
+          return `
         <tr>
-          <td><strong>${def.word}</strong></td>
-          <td>${def.part_of_speech || '-'}</td>
-          <td class="truncate" title="${def.definition.replace(/"/g, '&quot;')}">${def.definition}</td>
+          <td><strong>${word}</strong></td>
+          <td>${pos}</td>
+          <td class="truncate" title="${definition}">${definition}</td>
           <td class="actions">
             <form action="/channels/${channel.id}/predefined/define/definitions/${def.id}/delete" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this definition?')">Delete</button>
             </form>
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
@@ -67,6 +87,8 @@
     <p>Add a custom definition above to override the dictionary API for specific words.</p>
   </div>
   `}
+    `;
+  })()}
 </div>
 
 <style>

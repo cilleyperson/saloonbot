@@ -41,4 +41,6 @@ certs/
 *.pem
 *.key
 *.crt
-/docs/
+# Exclude general docs but include security reviews
+/docs/*
+!/docs/sec-review-*/

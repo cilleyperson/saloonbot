@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Saloon Bot</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .login-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .login-header h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .login-header p {
+      color: var(--text-muted);
+    }
+
+    .login-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+    }
+
+    .login-card .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .login-card .btn-primary {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+    }
+
+    .login-footer {
+      margin-top: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>Saloon Bot</h1>
+        <p>Admin Login</p>
+      </div>
+
+      <% if (typeof flash !== 'undefined' && flash && flash.error) { %>
+        <div class="alert alert-error">
+          <%= flash.error %>
+        </div>
+      <% } %>
+
+      <div class="login-card">
+        <form action="/auth/login" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" class="form-control" required autofocus>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" class="form-control" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Log In</button>
+        </form>
+      </div>
+
+      <div class="login-footer">
+        <p>Saloon Bot &copy; <%= new Date().getFullYear() %></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
