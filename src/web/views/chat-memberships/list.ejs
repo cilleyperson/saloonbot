@@ -1,10 +1,25 @@
 <%- include('../layout', { body: `
 <div class="chat-memberships-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const username = escapeHtml(channel.twitch_username);
+    const joinedChatsEscaped = joinedChats.map(c => escapeHtml(c)).join(', ');
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
       <h1>Chat Memberships</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
     <a href="/channels/${channel.id}/chats/new" class="btn btn-primary">Join Chat</a>
   </div>
@@ -13,7 +28,7 @@
     <p><strong>What are Chat Memberships?</strong></p>
     <p>Chat memberships allow the bot to join and participate in other Twitch channels' chats on your behalf.
        The bot automatically joins your own channel, but you can add additional channels here.</p>
-    <p><small>Currently in ${joinedChats.length} chat${joinedChats.length !== 1 ? 's' : ''}: ${joinedChats.join(', ') || 'none'}</small></p>
+    <p><small>Currently in ${joinedChats.length} chat${joinedChats.length !== 1 ? 's' : ''}: ${joinedChatsEscaped || 'none'}</small></p>
   </div>
 
   ${memberships.length > 0 ? `
@@ -28,11 +43,13 @@
         </tr>
       </thead>
       <tbody>
-        ${memberships.map(mem => `
+        ${memberships.map(mem => {
+          const targetChannel = escapeHtml(mem.target_channel);
+          return `
         <tr class="${mem.is_active ? '' : 'disabled'}">
           <td>
-            <a href="https://twitch.tv/${mem.target_channel}" target="_blank" rel="noopener noreferrer">
-              ${mem.target_channel}
+            <a href="https://twitch.tv/${targetChannel}" target="_blank" rel="noopener noreferrer">
+              ${targetChannel}
             </a>
           </td>
           <td>
@@ -43,23 +60,28 @@
           <td>${new Date(mem.created_at).toLocaleDateString()}</td>
           <td class="actions">
             <form action="/channels/${channel.id}/chats/${mem.id}/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-secondary">${mem.is_active ? 'Disable' : 'Enable'}</button>
             </form>
             <form action="/channels/${channel.id}/chats/${mem.id}/delete" method="POST" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Remove this chat membership?')">Remove</button>
             </form>
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>
   ` : `
   <div class="empty-state">
     <p>No additional chat memberships configured.</p>
-    <p><small>The bot automatically joins your own channel (${channel.twitch_username}).</small></p>
+    <p><small>The bot automatically joins your own channel (${username}).</small></p>
     <a href="/channels/${channel.id}/chats/new" class="btn btn-primary">Join Another Chat</a>
   </div>
   `}
+    `;
+  })()}
 </div>
 ` }) %>

@@ -1,16 +1,31 @@
 <%- include('../layout', { body: `
 <div class="responses-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const cmdName = escapeHtml(command.command_name);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/commands/${command.id}/edit" class="back-link">&larr; Back to Command</a>
-      <h1>Responses for !${command.command_name}</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <h1>Responses for !${cmdName}</h1>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
   <div class="card">
     <h3>Add New Response</h3>
     <form action="/channels/${channel.id}/commands/${command.id}/responses" method="POST" class="add-response-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">
         <label for="response_text">Response Text</label>
         <textarea name="response_text" id="response_text" rows="3" class="form-control" required></textarea>
@@ -45,11 +60,14 @@
           </tr>
         </thead>
         <tbody>
-          ${responses.map((resp, index) => `
+          ${responses.map((resp, index) => {
+            const respText = escapeHtml(resp.response_text);
+            return `
           <tr class="${resp.is_enabled ? '' : 'disabled'}" id="response-${resp.id}">
             <td>
               <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}" method="POST" class="inline-edit-form">
-                <textarea name="response_text" rows="2" class="form-control" required>${resp.response_text}</textarea>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <textarea name="response_text" rows="2" class="form-control" required>${respText}</textarea>
             </td>
             <td>
                 <input type="number" name="weight" value="${resp.weight}" min="1" max="100" class="form-control form-control-small">
@@ -64,11 +82,13 @@
                 <button type="submit" class="btn btn-small btn-primary">Save</button>
               </form>
               <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}/delete" method="POST" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
               </form>
             </td>
           </tr>
-          `).join('')}
+            `;
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -92,6 +112,8 @@
     <p>No responses configured yet. Add one above to get started!</p>
   </div>
   `}
+    `;
+  })()}
 </div>
 
 <style>

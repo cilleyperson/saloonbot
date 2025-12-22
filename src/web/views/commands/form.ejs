@@ -1,20 +1,38 @@
 <%- include('../layout', { body: `
 <div class="command-form-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const username = escapeHtml(channel.twitch_username);
+    const cmdName = command ? escapeHtml(command.command_name) : '';
+    const cmdResponse = command ? escapeHtml(command.response) : '';
+    const cmdEmoji = command && command.emoji ? escapeHtml(command.emoji) : '';
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/commands" class="back-link">&larr; Back to Commands</a>
       <h1>${isNew ? 'New Command' : 'Edit Command'}</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
   <form action="/channels/${channel.id}/commands${isNew ? '' : '/' + command.id}" method="POST" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group">
       <label for="command_name">Command Name</label>
       <div class="input-prefix">
         <span class="prefix">!</span>
         <input type="text" name="command_name" id="command_name"
-               value="${command ? command.command_name : ''}"
+               value="${cmdName}"
                class="form-control"
                placeholder="hello"
                pattern="[a-zA-Z0-9_]+"
@@ -43,7 +61,7 @@
 
     <div class="form-group single-response-section" id="single-response-section" style="display: ${command && command.response_mode === 'random' ? 'none' : 'block'};">
       <label for="response">Response</label>
-      <textarea name="response" id="response" rows="4" class="form-control">${command ? command.response : ''}</textarea>
+      <textarea name="response" id="response" rows="4" class="form-control">${cmdResponse}</textarea>
       <small class="form-help">
         Variables: <code>{user}</code> <code>{channel}</code> <code>{args}</code> <code>{arg1}</code> <code>{arg2}</code> <code>{arg3}</code>
       </small>
@@ -83,9 +101,12 @@
       <div class="form-group">
         <label for="user_level">User Level</label>
         <select name="user_level" id="user_level" class="form-control">
-          ${userLevels.map(level => `
-            <option value="${level}" ${command && command.user_level === level ? 'selected' : ''}>${level}</option>
-          `).join('')}
+          ${userLevels.map(level => {
+            const levelEscaped = escapeHtml(level);
+            return `
+            <option value="${levelEscaped}" ${command && command.user_level === level ? 'selected' : ''}>${levelEscaped}</option>
+            `;
+          }).join('')}
         </select>
         <small class="form-help">Minimum permission level required</small>
       </div>
@@ -96,7 +117,7 @@
       <div class="emoji-picker-container">
         <div class="emoji-input-row">
           <input type="text" name="emoji" id="emoji"
-                 value="${command && command.emoji ? command.emoji : ''}"
+                 value="${cmdEmoji}"
                  class="form-control emoji-input"
                  placeholder="Click an emoji below or type one"
                  readonly>
@@ -157,15 +178,18 @@
         <label class="checkbox">
           <input type="checkbox" name="chat_scopes[]" value="__own__" ${command && command.selected_chats && command.selected_chats.includes('__own__') ? 'checked' : ''}>
           <span class="checkbox-mark"></span>
-          Own Chat (${channel.twitch_username})
+          Own Chat (${username})
         </label>
-        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => `
+        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => {
+          const targetChannel = escapeHtml(m.target_channel);
+          return `
         <label class="checkbox">
-          <input type="checkbox" name="chat_scopes[]" value="${m.target_channel}" ${command && command.selected_chats && command.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
+          <input type="checkbox" name="chat_scopes[]" value="${targetChannel}" ${command && command.selected_chats && command.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
           <span class="checkbox-mark"></span>
-          ${m.target_channel}
+          ${targetChannel}
         </label>
-        `).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
+          `;
+        }).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
       </div>
       <small class="form-help">At least one chat must be selected when using "Selected Chats Only"</small>
     </div>
@@ -277,5 +301,7 @@
       <a href="/channels/${channel.id}/commands" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
+    `;
+  })()}
 </div>
 ` }) %>

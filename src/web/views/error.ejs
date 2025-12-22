@@ -1,13 +1,29 @@
 <%- include('layout', { body: `
 <div class="error-page">
-  <h1>Error ${typeof error !== 'undefined' ? error.status : ''}</h1>
-  <p>${typeof message !== 'undefined' ? message : 'An error occurred'}</p>
+  <h1>Error ${typeof error !== 'undefined' && error.status ? error.status : ''}</h1>
+  <p>${typeof message !== 'undefined' ? (function(str) {
+    if (!str) return 'An error occurred';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  })(message) : 'An error occurred'}</p>
   <a href="/" class="btn btn-primary">Back to Dashboard</a>
 
   ${typeof error !== 'undefined' && error.stack ? `
   <details class="error-details">
     <summary>Error Details</summary>
-    <pre>${error.stack}</pre>
+    <pre>${(function(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    })(error.stack)}</pre>
   </details>
   ` : ''}
 </div>

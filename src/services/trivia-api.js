@@ -1,4 +1,5 @@
 const { createChildLogger } = require('../utils/logger');
+const { fetchWithTimeout } = require('../utils/api-client');
 
 const logger = createChildLogger('trivia-api');
 
@@ -71,20 +72,12 @@ function decodeHtmlEntities(text) {
  */
 async function fetchQuestion() {
   try {
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-    const response = await fetch(`${API_URL}?amount=1&category=9&type=multiple`, {
+    const response = await fetchWithTimeout(`${API_URL}?amount=1&category=9&type=multiple`, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'SaloonBot (https://github.com/twitch-saloonbot)'
-      },
-      signal: controller.signal
-    });
-
-    // Clear the timeout since request completed
-    clearTimeout(timeoutId);
+      }
+    }, API_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
@@ -134,11 +127,6 @@ async function fetchQuestion() {
     };
 
   } catch (error) {
-    // Handle abort/timeout errors
-    if (error.name === 'AbortError') {
-      logger.error('Trivia API timeout', { timeoutMs: API_TIMEOUT_MS });
-      throw new Error('Request timed out - trivia service is slow');
-    }
     logger.error('Trivia API error', { error: error.message });
     throw error;
   }

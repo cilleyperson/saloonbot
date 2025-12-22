@@ -1,4 +1,5 @@
 const { createChildLogger } = require('../utils/logger');
+const { fetchWithTimeout } = require('../utils/api-client');
 
 const logger = createChildLogger('randomfact-api');
 
@@ -10,7 +11,7 @@ const API_URL = 'https://uselessfacts.jsph.pl/api/v2/facts/random';
  */
 async function fetchRandomFact() {
   try {
-    const response = await fetch(`${API_URL}?language=en`, {
+    const response = await fetchWithTimeout(`${API_URL}?language=en`, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'SaloonBot (https://github.com/twitch-saloonbot)'

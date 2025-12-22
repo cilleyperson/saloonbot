@@ -20,7 +20,7 @@ const config = {
   // Web Server
   server: {
     port: parseInt(process.env.PORT, 10) || 3000,
-    sessionSecret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
+    sessionSecret: process.env.SESSION_SECRET,
 
     // HTTPS Configuration
     https: {
@@ -43,6 +43,11 @@ const config = {
     level: process.env.LOG_LEVEL || 'info'
   },
 
+  // Security
+  security: {
+    tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY
+  },
+
   // Environment
   env: process.env.NODE_ENV || 'development',
   isDevelopment: process.env.NODE_ENV !== 'production',
@@ -59,9 +64,26 @@ function validateConfig() {
     ['twitch.clientSecret', config.twitch.clientSecret]
   ];
 
+  // In production, SESSION_SECRET is required
+  if (config.isProduction) {
+    required.push(['server.sessionSecret', config.server.sessionSecret]);
+  }
+
   const missing = required
     .filter(([, value]) => !value)
     .map(([key]) => key);
+
+  // In production, TOKEN_ENCRYPTION_KEY is required and must be valid
+  if (config.isProduction && config.security?.tokenEncryptionKey) {
+    // Validate key format (should be 64 hex characters = 32 bytes)
+    if (!/^[a-fA-F0-9]{64}$/.test(config.security.tokenEncryptionKey)) {
+      console.error('TOKEN_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+      process.exit(1);
+    }
+  }
+  if (config.isProduction && !config.security?.tokenEncryptionKey) {
+    missing.push('security.tokenEncryptionKey');
+  }
 
   return missing;
 }

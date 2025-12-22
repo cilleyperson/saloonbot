@@ -138,6 +138,37 @@ Edit `.env` with your configuration (see [Configuration](#configuration) section
 
 The database is automatically created and initialized on first run. No manual setup required.
 
+### 5. Create Admin User
+
+Create an admin user to access the web interface:
+
+```bash
+# Interactive mode (recommended)
+npm run create-admin
+
+# Command-line mode
+npm run create-admin <username> <password>
+```
+
+**Password Requirements:**
+- Minimum 12 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+
+**Example:**
+```bash
+npm run create-admin admin MySecurePass123
+```
+
+The script will:
+- Validate password strength
+- Hash the password with bcrypt (cost factor 12)
+- Create the admin user in the database
+- Display success confirmation
+
+You can create multiple admin users by running the script again with different usernames.
+
 ---
 
 ## Configuration

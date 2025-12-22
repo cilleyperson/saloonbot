@@ -1,4 +1,5 @@
 const { createChildLogger } = require('../utils/logger');
+const { fetchWithTimeout } = require('../utils/api-client');
 
 const logger = createChildLogger('dadjoke-api');
 
@@ -10,7 +11,7 @@ const API_URL = 'https://icanhazdadjoke.com/';
  */
 async function fetchDadJoke() {
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetchWithTimeout(API_URL, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'SaloonBot (https://github.com/twitch-saloonbot)'

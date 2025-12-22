@@ -1,10 +1,29 @@
 <%- include('../layout', { body: `
 <div class="predefined-settings-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const username = escapeHtml(channel.twitch_username);
+    const cmdEmoji = escapeHtml(commandInfo.emoji || '');
+    const cmdDisplayName = escapeHtml(commandInfo.displayName || '');
+    const cmdTrigger = escapeHtml(commandInfo.trigger || '');
+    const cmdDesc = escapeHtml(commandInfo.description || '');
+    const cmdSettingsName = escapeHtml(settings.command_name);
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>${commandInfo.emoji} ${commandInfo.displayName}</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <h1>${cmdEmoji} ${cmdDisplayName}</h1>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
@@ -12,13 +31,14 @@
     <h3>Command Info</h3>
     <dl class="info-list">
       <dt>Trigger</dt>
-      <dd><code>${commandInfo.trigger}</code></dd>
+      <dd><code>${cmdTrigger}</code></dd>
       <dt>Description</dt>
-      <dd>${commandInfo.description}</dd>
+      <dd>${cmdDesc}</dd>
     </dl>
   </div>
 
-  <form action="/channels/${channel.id}/predefined/${settings.command_name}" method="POST" class="form">
+  <form action="/channels/${channel.id}/predefined/${cmdSettingsName}" method="POST" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="card">
       <h3>Settings</h3>
 
@@ -56,15 +76,19 @@
           <label class="checkbox-label">
             <input type="checkbox" name="chat_scopes" value="__own__"
                    ${settings.selected_chats.includes('__own__') ? 'checked' : ''}>
-            Own chat (${channel.twitch_username})
+            Own chat (${username})
           </label>
-          ${chatMemberships.map(m => `
+          ${chatMemberships.map(m => {
+            const targetChannel = escapeHtml(m.target_channel);
+            const targetChannelLower = m.target_channel.toLowerCase();
+            return `
           <label class="checkbox-label">
-            <input type="checkbox" name="chat_scopes" value="${m.target_channel.toLowerCase()}"
-                   ${settings.selected_chats.includes(m.target_channel.toLowerCase()) ? 'checked' : ''}>
-            ${m.target_channel}
+            <input type="checkbox" name="chat_scopes" value="${escapeHtml(targetChannelLower)}"
+                   ${settings.selected_chats.includes(targetChannelLower) ? 'checked' : ''}>
+            ${targetChannel}
           </label>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
         ${chatMemberships.length === 0 ? `
         <small>No additional chats configured. <a href="/channels/${channel.id}/chats">Add chat memberships</a> to enable this command in other channels.</small>
@@ -77,6 +101,8 @@
       <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
+    `;
+  })()}
 </div>
 
 <script>

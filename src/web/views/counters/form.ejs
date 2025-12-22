@@ -1,19 +1,37 @@
 <%- include('../layout', { body: `
 <div class="counter-form-page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const username = escapeHtml(channel.twitch_username);
+    const cntName = counter ? escapeHtml(counter.counter_name) : '';
+    const cntTemplate = counter ? escapeHtml(counter.response_template) : '{counter} count: {count}';
+    const cntEmoji = counter && counter.emoji ? escapeHtml(counter.emoji) : '';
+
+    return `
   <div class="page-header">
     <div>
       <a href="/channels/${channel.id}/counters" class="back-link">&larr; Back to Counters</a>
       <h1>${isNew ? 'New Counter' : 'Edit Counter'}</h1>
-      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+      <p class="subtitle">${displayName}</p>
     </div>
   </div>
 
   <form action="/channels/${channel.id}/counters${isNew ? '' : '/' + counter.id}" method="POST" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="form-group">
       <label for="counter_name">Counter Name</label>
       <div class="input-suffix">
         <input type="text" name="counter_name" id="counter_name"
-               value="${counter ? counter.counter_name : ''}"
+               value="${cntName}"
                class="form-control"
                placeholder="death"
                pattern="[a-zA-Z0-9_]+"
@@ -27,7 +45,7 @@
     <div class="form-group">
       <label for="response_template">Response Template</label>
       <input type="text" name="response_template" id="response_template"
-             value="${counter ? counter.response_template : '{counter} count: {count}'}"
+             value="${cntTemplate}"
              class="form-control">
       <small class="form-help">
         Variables: <code>{counter}</code> <code>{count}</code> <code>{user}</code>
@@ -61,7 +79,7 @@
       <div class="emoji-picker-container">
         <div class="emoji-input-row">
           <input type="text" name="emoji" id="emoji"
-                 value="${counter && counter.emoji ? counter.emoji : ''}"
+                 value="${cntEmoji}"
                  class="form-control emoji-input"
                  placeholder="Click an emoji below or type one"
                  readonly>
@@ -112,15 +130,18 @@
         <label class="checkbox">
           <input type="checkbox" name="chat_scopes[]" value="__own__" ${counter && counter.selected_chats && counter.selected_chats.includes('__own__') ? 'checked' : ''}>
           <span class="checkbox-mark"></span>
-          Own Chat (${channel.twitch_username})
+          Own Chat (${username})
         </label>
-        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => `
+        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => {
+          const targetChannel = escapeHtml(m.target_channel);
+          return `
         <label class="checkbox">
-          <input type="checkbox" name="chat_scopes[]" value="${m.target_channel}" ${counter && counter.selected_chats && counter.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
+          <input type="checkbox" name="chat_scopes[]" value="${targetChannel}" ${counter && counter.selected_chats && counter.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
           <span class="checkbox-mark"></span>
-          ${m.target_channel}
+          ${targetChannel}
         </label>
-        `).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
+          `;
+        }).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
       </div>
       <small class="form-help">At least one chat must be selected when using "Selected Chats Only"</small>
     </div>
@@ -216,5 +237,7 @@
       <a href="/channels/${channel.id}/counters" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
+    `;
+  })()}
 </div>
 ` }) %>

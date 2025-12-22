@@ -34,6 +34,12 @@ services:
       - bot-data:/app/data
       - bot-logs:/app/logs
 
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
     # Health check configuration
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]

@@ -18,15 +18,29 @@
         </tr>
       </thead>
       <tbody>
-        ${channels.map(channel => `
+        ${channels.map(channel => {
+          const escapeHtml = (str) => {
+            if (!str) return '';
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          };
+          const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+          const username = escapeHtml(channel.twitch_username);
+          const statusClass = channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected';
+          const statusText = channel.is_active ? escapeHtml(channel.status.status) : 'inactive';
+          return `
         <tr class="${channel.is_active ? '' : 'inactive'}">
           <td>
-            <strong>${channel.display_name || channel.twitch_username}</strong>
-            <br><small>@${channel.twitch_username}</small>
+            <strong>${displayName}</strong>
+            <br><small>@${username}</small>
           </td>
           <td>
-            <span class="status-badge ${channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected'}">
-              ${channel.is_active ? channel.status.status : 'inactive'}
+            <span class="status-badge ${statusClass}">
+              ${statusText}
             </span>
           </td>
           <td>${channel.commandCount}</td>
@@ -37,7 +51,8 @@
             <a href="/channels/${channel.id}/counters" class="btn btn-small btn-secondary">Counters</a>
           </td>
         </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   </div>

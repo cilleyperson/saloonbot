@@ -40,6 +40,12 @@ services:
       - bot-data-dev:/app/data
       - bot-logs-dev:/app/logs
 
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
     # Override command for development with file watching
     command: ["node", "--watch", "index.js"]
 

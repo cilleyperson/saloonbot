@@ -1,4 +1,5 @@
 const { createChildLogger } = require('../utils/logger');
+const { fetchWithTimeout } = require('../utils/api-client');
 
 const logger = createChildLogger('dictionary-api');
 
@@ -13,7 +14,7 @@ async function fetchDefinition(word) {
   const url = `${API_BASE}/${encodeURIComponent(word.toLowerCase())}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
       if (response.status === 404) {
