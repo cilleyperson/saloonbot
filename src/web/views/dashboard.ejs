@@ -1,92 +1,131 @@
 <%- include('layout', { body: `
-<div class="dashboard">
-  <h1>Dashboard</h1>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-content">
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-subtitle">Overview of your Saloon Bot</p>
+    </div>
+  </div>
 
   ${typeof needsBotAuth !== 'undefined' && needsBotAuth ? `
-  <div class="alert alert-warning">
+  <div class="alert alert-warning mb-4">
     <strong>Bot Not Authenticated</strong>
     <p>The bot needs to be authenticated with Twitch before it can work.</p>
-    <a href="/auth/bot" class="btn btn-primary">Authenticate Bot</a>
+    <a href="/auth/bot" class="btn btn-primary mt-2">Authenticate Bot</a>
   </div>
   ` : ''}
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-value">${typeof botStatus !== 'undefined' && botStatus.running ? 'Online' : 'Offline'}</div>
-      <div class="stat-label">Bot Status</div>
-      <div class="stat-indicator ${typeof botStatus !== 'undefined' && botStatus.running ? 'online' : 'offline'}"></div>
+  <div class="page-content">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon ${typeof botStatus !== 'undefined' && botStatus.running ? 'stat-icon-success' : 'stat-icon-error'}">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value">${typeof botStatus !== 'undefined' && botStatus.running ? 'Online' : 'Offline'}</div>
+          <div class="stat-label">Bot Status</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.5 1a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-1.5 1.5H14v-6h.5z"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value">${typeof stats !== 'undefined' ? stats.channels : 0}</div>
+          <div class="stat-label">Active Channels</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value">${typeof stats !== 'undefined' ? stats.commands : 0}</div>
+          <div class="stat-label">Total Commands</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value">${typeof stats !== 'undefined' ? stats.counters : 0}</div>
+          <div class="stat-label">Total Counters</div>
+        </div>
+      </div>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-value">${typeof stats !== 'undefined' ? stats.channels : 0}</div>
-      <div class="stat-label">Active Channels</div>
-    </div>
+    <div class="card mt-6">
+      <div class="card-header">
+        <h2 class="card-title">Connected Channels</h2>
+        <a href="/channels/add" class="btn btn-primary btn-sm">Add Channel</a>
+      </div>
 
-    <div class="stat-card">
-      <div class="stat-value">${typeof stats !== 'undefined' ? stats.commands : 0}</div>
-      <div class="stat-label">Total Commands</div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-value">${typeof stats !== 'undefined' ? stats.counters : 0}</div>
-      <div class="stat-label">Total Counters</div>
+      ${typeof channels !== 'undefined' && channels.length > 0 ? `
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${channels.map(channel => {
+              const escapeHtml = (str) => {
+                if (!str) return '';
+                return String(str)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;');
+              };
+              const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+              const username = escapeHtml(channel.twitch_username);
+              const isConnected = channel.status.status === 'connected';
+              const statusText = escapeHtml(channel.status.status);
+              return `
+            <tr>
+              <td>
+                <div class="text-primary font-medium">${displayName}</div>
+                <div class="text-secondary text-sm">@${username}</div>
+              </td>
+              <td>
+                <span class="badge ${isConnected ? 'badge-success' : 'badge-error'}">
+                  ${statusText}
+                </span>
+              </td>
+              <td>
+                <a href="/channels/${channel.id}" class="btn btn-sm">Manage</a>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ` : `
+      <div class="card-body">
+        <div class="empty-state">
+          <p>No channels connected yet.</p>
+          <a href="/channels/add" class="btn btn-primary mt-2">Add your first channel</a>
+        </div>
+      </div>
+      `}
     </div>
   </div>
-
-  <section class="section">
-    <div class="section-header">
-      <h2>Connected Channels</h2>
-      <a href="/channels/add" class="btn btn-primary">Add Channel</a>
-    </div>
-
-    ${typeof channels !== 'undefined' && channels.length > 0 ? `
-    <div class="table-responsive">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Channel</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${channels.map(channel => {
-            const escapeHtml = (str) => {
-              if (!str) return '';
-              return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-            };
-            const displayName = escapeHtml(channel.display_name || channel.twitch_username);
-            const username = escapeHtml(channel.twitch_username);
-            const statusClass = channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected';
-            const statusText = escapeHtml(channel.status.status);
-            return `
-          <tr>
-            <td>
-              <strong>${displayName}</strong>
-              <br><small>@${username}</small>
-            </td>
-            <td>
-              <span class="status-badge ${statusClass}">
-                ${statusText}
-              </span>
-            </td>
-            <td>
-              <a href="/channels/${channel.id}" class="btn btn-small">Manage</a>
-            </td>
-          </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-    ` : `
-    <p class="empty-state">No channels connected yet. <a href="/channels/add">Add your first channel</a>.</p>
-    `}
-  </section>
 </div>
-` }) %>
+`, activePage: 'dashboard' }) %>

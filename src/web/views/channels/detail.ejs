@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="channel-detail">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -12,138 +12,178 @@
     };
     const displayName = escapeHtml(channel.display_name || channel.twitch_username);
     const username = escapeHtml(channel.twitch_username);
-    const statusClass = status.status === 'connected' ? 'status-connected' : 'status-disconnected';
+    const isConnected = status.status === 'connected';
     const statusText = channel.is_active ? escapeHtml(status.status) : 'inactive';
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels" class="back-link">&larr; Back to Channels</a>
-      <h1>${displayName}</h1>
-      <p class="subtitle">@${username}</p>
+      <h1 class="page-title">${displayName}</h1>
+      <p class="page-subtitle">@${username}</p>
     </div>
-    <span class="status-badge ${statusClass}">
-      ${statusText}
-    </span>
+    <div class="page-header-actions">
+      <span class="badge ${isConnected && channel.is_active ? 'badge-success' : 'badge-error'} badge-lg">
+        ${statusText}
+      </span>
+    </div>
   </div>
 
-  <div class="card-grid">
-    <div class="card">
-      <h3>Quick Actions</h3>
-      <div class="button-group">
-        <a href="/channels/${channel.id}/settings" class="btn btn-primary">Settings</a>
-        <a href="/channels/${channel.id}/commands" class="btn btn-secondary">Commands (${commands.length})</a>
-        <a href="/channels/${channel.id}/counters" class="btn btn-secondary">Counters (${counters.length})</a>
-        <a href="/channels/${channel.id}/chats" class="btn btn-secondary">Chats (${chatMemberships.length})</a>
-        <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Predefined Commands</a>
+  <div class="page-content">
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Quick Actions</h3>
+        </div>
+        <div class="card-body">
+          <div class="btn-group-vertical">
+            <a href="/channels/${channel.id}/settings" class="btn btn-primary">Settings</a>
+            <a href="/channels/${channel.id}/commands" class="btn btn-secondary">Commands (${commands.length})</a>
+            <a href="/channels/${channel.id}/counters" class="btn btn-secondary">Counters (${counters.length})</a>
+            <a href="/channels/${channel.id}/chat-memberships" class="btn btn-secondary">Memberships (${chatMemberships.length})</a>
+            <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Predefined Commands</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Channel Status</h3>
+        </div>
+        <div class="card-body">
+          <dl class="info-list">
+            <div class="info-item">
+              <dt>Status</dt>
+              <dd><span class="badge ${isConnected && channel.is_active ? 'badge-success' : 'badge-error'}">${statusText}</span></dd>
+            </div>
+            <div class="info-item">
+              <dt>Active</dt>
+              <dd>${channel.is_active ? 'Yes' : 'No'}</dd>
+            </div>
+            ${status.connectedAt ? `
+            <div class="info-item">
+              <dt>Connected Since</dt>
+              <dd>${new Date(status.connectedAt).toLocaleString()}</dd>
+            </div>
+            ` : ''}
+          </dl>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h3>Channel Status</h3>
-      <dl class="info-list">
-        <dt>Status</dt>
-        <dd>${statusText}</dd>
-        <dt>Active</dt>
-        <dd>${channel.is_active ? 'Yes' : 'No'}</dd>
-        ${status.connectedAt ? `
-        <dt>Connected Since</dt>
-        <dd>${new Date(status.connectedAt).toLocaleString()}</dd>
-        ` : ''}
-      </dl>
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Recent Commands</h3>
+        <a href="/channels/${channel.id}/commands" class="btn btn-sm btn-secondary">View All</a>
+      </div>
+      ${commands.length > 0 ? `
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Response</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${commands.slice(0, 5).map(cmd => {
+              const cmdName = escapeHtml(cmd.command_name);
+              const cmdResponse = escapeHtml(cmd.response);
+              return `
+            <tr>
+              <td><code>!${cmdName}</code></td>
+              <td class="text-truncate">${cmdResponse}</td>
+              <td>
+                <span class="badge ${cmd.is_enabled ? 'badge-success' : 'badge-error'}">
+                  ${cmd.is_enabled ? 'enabled' : 'disabled'}
+                </span>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ` : `
+      <div class="card-body">
+        <div class="empty-state empty-state-sm">
+          <p>No commands yet.</p>
+          <a href="/channels/${channel.id}/commands/new" class="btn btn-sm btn-primary mt-2">Create one</a>
+        </div>
+      </div>
+      `}
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Counters</h3>
+        <a href="/channels/${channel.id}/counters" class="btn btn-sm btn-secondary">View All</a>
+      </div>
+      ${counters.length > 0 ? `
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Counter</th>
+              <th>Current Count</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${counters.slice(0, 5).map(cnt => {
+              const cntName = escapeHtml(cnt.counter_name);
+              return `
+            <tr>
+              <td><code>${cntName}++</code></td>
+              <td>${cnt.current_count}</td>
+              <td>
+                <span class="badge ${cnt.is_enabled ? 'badge-success' : 'badge-error'}">
+                  ${cnt.is_enabled ? 'enabled' : 'disabled'}
+                </span>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ` : `
+      <div class="card-body">
+        <div class="empty-state empty-state-sm">
+          <p>No counters yet.</p>
+          <a href="/channels/${channel.id}/counters/new" class="btn btn-sm btn-primary mt-2">Create one</a>
+        </div>
+      </div>
+      `}
+    </div>
+
+    <div class="card card-danger">
+      <div class="card-header">
+        <h3 class="card-title">Danger Zone</h3>
+      </div>
+      <div class="card-body">
+        <div class="btn-group">
+          ${channel.is_active ? `
+          <form action="/channels/${channel.id}/disconnect" method="POST" class="inline-form">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <button type="submit" class="btn btn-warning" onclick="return confirm('Disconnect this channel?')">Disconnect Channel</button>
+          </form>
+          ` : `
+          <form action="/channels/${channel.id}/reconnect" method="POST" class="inline-form">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <button type="submit" class="btn btn-primary">Reconnect Channel</button>
+          </form>
+          `}
+          <form action="/channels/${channel.id}/delete" method="POST" class="inline-form">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this channel and all its data? This cannot be undone!')">Delete Channel</button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
-
-  <section class="section">
-    <h2>Recent Commands</h2>
-    ${commands.length > 0 ? `
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Command</th>
-          <th>Response</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${commands.slice(0, 5).map(cmd => {
-          const cmdName = escapeHtml(cmd.command_name);
-          const cmdResponse = escapeHtml(cmd.response);
-          return `
-        <tr>
-          <td><code>!${cmdName}</code></td>
-          <td class="truncate">${cmdResponse}</td>
-          <td>
-            <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
-              ${cmd.is_enabled ? 'enabled' : 'disabled'}
-            </span>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-    ${commands.length > 5 ? `<a href="/channels/${channel.id}/commands">View all ${commands.length} commands &rarr;</a>` : ''}
-    ` : `
-    <p class="empty-state">No commands yet. <a href="/channels/${channel.id}/commands/new">Create one</a>.</p>
-    `}
-  </section>
-
-  <section class="section">
-    <h2>Counters</h2>
-    ${counters.length > 0 ? `
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Counter</th>
-          <th>Current Count</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${counters.slice(0, 5).map(cnt => {
-          const cntName = escapeHtml(cnt.counter_name);
-          return `
-        <tr>
-          <td><code>${cntName}++</code></td>
-          <td>${cnt.current_count}</td>
-          <td>
-            <span class="status-badge ${cnt.is_enabled ? 'status-connected' : 'status-disconnected'}">
-              ${cnt.is_enabled ? 'enabled' : 'disabled'}
-            </span>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-    ${counters.length > 5 ? `<a href="/channels/${channel.id}/counters">View all ${counters.length} counters &rarr;</a>` : ''}
-    ` : `
-    <p class="empty-state">No counters yet. <a href="/channels/${channel.id}/counters/new">Create one</a>.</p>
-    `}
-  </section>
-
-  <section class="section danger-zone">
-    <h2>Danger Zone</h2>
-    <div class="button-group">
-      ${channel.is_active ? `
-      <form action="/channels/${channel.id}/disconnect" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <button type="submit" class="btn btn-warning" onclick="return confirm('Disconnect this channel?')">Disconnect Channel</button>
-      </form>
-      ` : `
-      <form action="/channels/${channel.id}/reconnect" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <button type="submit" class="btn btn-primary">Reconnect Channel</button>
-      </form>
-      `}
-      <form action="/channels/${channel.id}/delete" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this channel and all its data? This cannot be undone!')">Delete Channel</button>
-      </form>
-    </div>
-  </section>
     `;
   })()}
 </div>
-` }) %>
+`, activePage: 'channel-overview', channel: channel }) %>

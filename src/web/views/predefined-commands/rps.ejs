@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="rps-page">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -14,100 +14,87 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>Rock Paper Scissors Leaderboard</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">Rock Paper Scissors Leaderboard</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
   </div>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <span class="stat-value">${totalGames}</span>
-      <span class="stat-label">Total Games</span>
+  <div class="page-content">
+    <div class="stats-row mb-6">
+      <div class="stat-card">
+        <span class="stat-value">${totalGames}</span>
+        <span class="stat-label">Total Games</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${playerCount}</span>
+        <span class="stat-label">Players</span>
+      </div>
     </div>
-    <div class="stat-card">
-      <span class="stat-value">${playerCount}</span>
-      <span class="stat-label">Players</span>
-    </div>
-  </div>
 
-  ${leaderboard.length > 0 ? `
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Player</th>
-          <th>Wins</th>
-          <th>Losses</th>
-          <th>Ties</th>
-          <th>Win %</th>
-          <th>Best Streak</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${leaderboard.map((stats, i) => {
-          const username = escapeHtml(stats.username);
-          return `
-        <tr>
-          <td>
-            ${i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : i + 1}
-          </td>
-          <td><strong>${username}</strong></td>
-          <td class="win">${stats.wins}</td>
-          <td class="loss">${stats.losses}</td>
-          <td>${stats.ties}</td>
-          <td>${stats.win_percentage}%</td>
-          <td>${stats.best_streak}</td>
-          <td class="actions">
-            <form action="/channels/${channel.id}/predefined/rps/stats/${stats.user_id}/reset" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Reset this user\\'s stats?')">Reset</button>
-            </form>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
+    ${leaderboard.length > 0 ? `
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Wins</th>
+              <th>Losses</th>
+              <th>Ties</th>
+              <th>Win %</th>
+              <th>Best Streak</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leaderboard.map((stats, i) => {
+              const username = escapeHtml(stats.username);
+              const rank = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : (i + 1) + 'th';
+              return `
+            <tr>
+              <td>
+                <span class="badge ${i === 0 ? 'badge-warning' : i === 1 ? 'badge-secondary' : i === 2 ? 'badge-info' : ''}">${rank}</span>
+              </td>
+              <td><strong>${username}</strong></td>
+              <td class="text-success">${stats.wins}</td>
+              <td class="text-error">${stats.losses}</td>
+              <td>${stats.ties}</td>
+              <td>${stats.win_percentage}%</td>
+              <td>${stats.best_streak}</td>
+              <td>
+                <form action="/channels/${channel.id}/predefined/rps/stats/${stats.user_id}/reset" method="POST" class="inline-form">
+                  <input type="hidden" name="_csrf" value="${csrfToken}">
+                  <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reset this user\\'s stats?')">Reset</button>
+                </form>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+            <line x1="9" y1="9" x2="9.01" y2="9"/>
+            <line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+          <h3>No games played yet</h3>
+          <p>Users can play by typing <code>!rps rock</code>, <code>!rps paper</code>, or <code>!rps scissors</code> in chat.</p>
+        </div>
+      </div>
+    </div>
+    `}
   </div>
-  ` : `
-  <div class="empty-state">
-    <p>No games played yet.</p>
-    <p>Users can play by typing <code>!rps rock</code>, <code>!rps paper</code>, or <code>!rps scissors</code> in chat.</p>
-  </div>
-  `}
     `;
   })()}
 </div>
-
-<style>
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  max-width: 400px;
-}
-.stat-card {
-  padding: 1rem;
-  border-radius: 8px;
-  text-align: center;
-  background: var(--bg-secondary, #f5f5f5);
-}
-.stat-value {
-  display: block;
-  font-size: 2rem;
-  font-weight: bold;
-}
-.stat-label {
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  color: var(--text-secondary, #666);
-}
-.win { color: #28a745; }
-.loss { color: #dc3545; }
-</style>
-` }) %>
+`, activePage: 'predefined', channel: channel }) %>

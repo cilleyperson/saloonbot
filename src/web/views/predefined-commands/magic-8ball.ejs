@@ -1,5 +1,5 @@
 <%- include('../layout', { body: `
-<div class="magic-8ball-page">
+<div class="page">
   ${(function() {
     const escapeHtml = (str) => {
       if (!str) return '';
@@ -14,132 +14,103 @@
 
     return `
   <div class="page-header">
-    <div>
+    <div class="page-header-content">
       <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
-      <h1>Magic 8 Ball Responses</h1>
-      <p class="subtitle">${displayName}</p>
+      <h1 class="page-title">Magic 8 Ball Responses</h1>
+      <p class="page-subtitle">${displayName}</p>
     </div>
   </div>
 
-  <div class="stats-grid">
-    <div class="stat-card positive">
-      <span class="stat-value">${counts.positive}</span>
-      <span class="stat-label">Positive</span>
-    </div>
-    <div class="stat-card neutral">
-      <span class="stat-value">${counts.neutral}</span>
-      <span class="stat-label">Neutral</span>
-    </div>
-    <div class="stat-card negative">
-      <span class="stat-value">${counts.negative}</span>
-      <span class="stat-label">Negative</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Add New Response</h3>
-    <form action="/channels/${channel.id}/predefined/ball/responses" method="POST" class="form form-inline">
-      <input type="hidden" name="_csrf" value="${csrfToken}">
-      <div class="form-group">
-        <input type="text" name="response_text" placeholder="Enter response text..." required>
+  <div class="page-content">
+    <div class="stats-row mb-6">
+      <div class="stat-card stat-card-success">
+        <span class="stat-value">${counts.positive}</span>
+        <span class="stat-label">Positive</span>
       </div>
-      <div class="form-group">
-        <select name="response_type">
-          <option value="positive">Positive</option>
-          <option value="neutral" selected>Neutral</option>
-          <option value="negative">Negative</option>
-        </select>
+      <div class="stat-card stat-card-warning">
+        <span class="stat-value">${counts.neutral}</span>
+        <span class="stat-label">Neutral</span>
       </div>
-      <button type="submit" class="btn btn-primary">Add Response</button>
-    </form>
-  </div>
+      <div class="stat-card stat-card-error">
+        <span class="stat-value">${counts.negative}</span>
+        <span class="stat-label">Negative</span>
+      </div>
+    </div>
 
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Response</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${responses.map(resp => {
-          const respText = escapeHtml(resp.response_text);
-          const respType = escapeHtml(resp.response_type);
-          return `
-        <tr class="${resp.is_active ? '' : 'disabled'}">
-          <td>${respText}</td>
-          <td>
-            <span class="type-badge type-${respType}">${respType}</span>
-          </td>
-          <td>
-            <span class="status-badge ${resp.is_active ? 'status-connected' : 'status-disconnected'}">
-              ${resp.is_active ? 'active' : 'inactive'}
-            </span>
-          </td>
-          <td class="actions">
-            <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/toggle" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-secondary">${resp.is_active ? 'Disable' : 'Enable'}</button>
-            </form>
-            <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/delete" method="POST" class="inline-form">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
-            </form>
-          </td>
-        </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Add New Response</h3>
+      </div>
+      <div class="card-body">
+        <form action="/channels/${channel.id}/predefined/ball/responses" method="POST">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+          <div class="grid grid-cols-3 gap-4">
+            <div class="form-group" style="grid-column: span 2;">
+              <label for="response_text" class="form-label">Response Text</label>
+              <input type="text" id="response_text" name="response_text" class="form-input" placeholder="Enter response text..." required>
+            </div>
+            <div class="form-group">
+              <label for="response_type" class="form-label">Type</label>
+              <select id="response_type" name="response_type" class="form-input">
+                <option value="positive">Positive</option>
+                <option value="neutral" selected>Neutral</option>
+                <option value="negative">Negative</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Response</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Response</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${responses.map(resp => {
+              const respText = escapeHtml(resp.response_text);
+              const respType = escapeHtml(resp.response_type);
+              const badgeClass = respType === 'positive' ? 'badge-success' : respType === 'negative' ? 'badge-error' : 'badge-warning';
+              return `
+            <tr class="${resp.is_active ? '' : 'row-muted'}">
+              <td>${respText}</td>
+              <td>
+                <span class="badge ${badgeClass}">${respType}</span>
+              </td>
+              <td>
+                <span class="badge ${resp.is_active ? 'badge-success' : 'badge-error'}">
+                  ${resp.is_active ? 'active' : 'inactive'}
+                </span>
+              </td>
+              <td>
+                <div class="btn-group">
+                  <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/toggle" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-secondary">${resp.is_active ? 'Disable' : 'Enable'}</button>
+                  </form>
+                  <form action="/channels/${channel.id}/predefined/ball/responses/${resp.id}/delete" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
     `;
   })()}
 </div>
-
-<style>
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.stat-card {
-  padding: 1rem;
-  border-radius: 8px;
-  text-align: center;
-}
-.stat-card.positive { background: #d4edda; }
-.stat-card.neutral { background: #fff3cd; }
-.stat-card.negative { background: #f8d7da; }
-.stat-value {
-  display: block;
-  font-size: 2rem;
-  font-weight: bold;
-}
-.stat-label {
-  font-size: 0.875rem;
-  text-transform: uppercase;
-}
-.type-badge {
-  padding: 0.25em 0.5em;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-}
-.type-positive { background: #d4edda; color: #155724; }
-.type-neutral { background: #fff3cd; color: #856404; }
-.type-negative { background: #f8d7da; color: #721c24; }
-.form-inline {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-end;
-}
-.form-inline .form-group {
-  flex: 1;
-  margin-bottom: 0;
-}
-</style>
-` }) %>
+`, activePage: 'predefined', channel: channel }) %>
