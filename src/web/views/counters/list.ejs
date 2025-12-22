@@ -1,0 +1,65 @@
+<%- include('../layout', { body: `
+<div class="counters-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <h1>Counters</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+    <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Add Counter</a>
+  </div>
+
+  ${counters.length > 0 ? `
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Counter</th>
+          <th>Current Count</th>
+          <th>Response Template</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${counters.map(cnt => `
+        <tr class="${cnt.is_enabled ? '' : 'disabled'}">
+          <td><code>${cnt.counter_name}++</code></td>
+          <td><strong>${cnt.current_count}</strong></td>
+          <td class="truncate" title="${cnt.response_template.replace(/"/g, '&quot;')}">${cnt.response_template}</td>
+          <td>
+            <span class="status-badge ${cnt.is_enabled ? 'status-connected' : 'status-disconnected'}">
+              ${cnt.is_enabled ? 'enabled' : 'disabled'}
+            </span>
+          </td>
+          <td class="actions">
+            <a href="/channels/${channel.id}/counters/${cnt.id}/edit" class="btn btn-small">Edit</a>
+            <form action="/channels/${channel.id}/counters/${cnt.id}/reset" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-secondary" onclick="return confirm('Reset this counter to 0?')">Reset</button>
+            </form>
+            <form action="/channels/${channel.id}/counters/${cnt.id}/toggle" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-secondary">${cnt.is_enabled ? 'Disable' : 'Enable'}</button>
+            </form>
+            <form action="/channels/${channel.id}/counters/${cnt.id}/delete" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this counter?')">Delete</button>
+            </form>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  ` : `
+  <div class="empty-state">
+    <p>No counters yet.</p>
+    <a href="/channels/${channel.id}/counters/new" class="btn btn-primary">Create Your First Counter</a>
+  </div>
+  `}
+
+  <section class="info-box">
+    <h3>How Counters Work</h3>
+    <p>When a viewer types <code>countername++</code> in chat, the bot will increment the counter and display the current count.</p>
+    <p>Example: If you create a counter called "death", viewers can type <code>death++</code> and the bot will respond with the current death count.</p>
+  </section>
+</div>
+` }) %>

@@ -1,0 +1,40 @@
+# Dependencies - must be rebuilt inside container for correct architecture
+node_modules/
+
+# Data and logs
+data/
+logs/
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development files
+.git/
+.gitignore
+.dockerignore
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Documentation (not needed in container)
+*.md
+docs/
+
+# Docker files (avoid recursive copy)
+docker/
+Dockerfile

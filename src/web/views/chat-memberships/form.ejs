@@ -1,0 +1,42 @@
+<%- include('../layout', { body: `
+<div class="chat-membership-form-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}/chats" class="back-link">&larr; Back to Chat Memberships</a>
+      <h1>Join Chat</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <form action="/channels/${channel.id}/chats" method="POST" class="card">
+    <div class="form-group">
+      <label for="target_channel">Channel to Join</label>
+      <div class="input-prefix">
+        <span class="prefix">@</span>
+        <input type="text" name="target_channel" id="target_channel"
+               class="form-control"
+               placeholder="channelname"
+               pattern="[a-zA-Z0-9_]+"
+               required
+               autocomplete="off">
+      </div>
+      <small class="form-help">Enter the Twitch username of the channel you want the bot to join.</small>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Join Chat</button>
+      <a href="/channels/${channel.id}/chats" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+
+  <div class="card info-card">
+    <h3>Notes</h3>
+    <ul>
+      <li>The bot will attempt to join the specified channel's chat.</li>
+      <li>Commands and counters configured for your channel will work in joined chats.</li>
+      <li>The bot joins your own channel automatically - you don't need to add it here.</li>
+      <li>Make sure the channel name is spelled correctly.</li>
+    </ul>
+  </div>
+</div>
+` }) %>

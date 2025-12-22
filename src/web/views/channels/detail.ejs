@@ -1,0 +1,121 @@
+<%- include('../layout', { body: `
+<div class="channel-detail">
+  <div class="page-header">
+    <div>
+      <a href="/channels" class="back-link">&larr; Back to Channels</a>
+      <h1>${channel.display_name || channel.twitch_username}</h1>
+      <p class="subtitle">@${channel.twitch_username}</p>
+    </div>
+    <span class="status-badge ${status.status === 'connected' ? 'status-connected' : 'status-disconnected'}">
+      ${channel.is_active ? status.status : 'inactive'}
+    </span>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>Quick Actions</h3>
+      <div class="button-group">
+        <a href="/channels/${channel.id}/settings" class="btn btn-primary">Settings</a>
+        <a href="/channels/${channel.id}/commands" class="btn btn-secondary">Commands (${commands.length})</a>
+        <a href="/channels/${channel.id}/counters" class="btn btn-secondary">Counters (${counters.length})</a>
+        <a href="/channels/${channel.id}/chats" class="btn btn-secondary">Chats (${chatMemberships.length})</a>
+        <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Predefined Commands</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Channel Status</h3>
+      <dl class="info-list">
+        <dt>Status</dt>
+        <dd>${channel.is_active ? status.status : 'inactive'}</dd>
+        <dt>Active</dt>
+        <dd>${channel.is_active ? 'Yes' : 'No'}</dd>
+        ${status.connectedAt ? `
+        <dt>Connected Since</dt>
+        <dd>${new Date(status.connectedAt).toLocaleString()}</dd>
+        ` : ''}
+      </dl>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>Recent Commands</h2>
+    ${commands.length > 0 ? `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Command</th>
+          <th>Response</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${commands.slice(0, 5).map(cmd => `
+        <tr>
+          <td><code>!${cmd.command_name}</code></td>
+          <td class="truncate">${cmd.response}</td>
+          <td>
+            <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
+              ${cmd.is_enabled ? 'enabled' : 'disabled'}
+            </span>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ${commands.length > 5 ? `<a href="/channels/${channel.id}/commands">View all ${commands.length} commands &rarr;</a>` : ''}
+    ` : `
+    <p class="empty-state">No commands yet. <a href="/channels/${channel.id}/commands/new">Create one</a>.</p>
+    `}
+  </section>
+
+  <section class="section">
+    <h2>Counters</h2>
+    ${counters.length > 0 ? `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Counter</th>
+          <th>Current Count</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${counters.slice(0, 5).map(cnt => `
+        <tr>
+          <td><code>${cnt.counter_name}++</code></td>
+          <td>${cnt.current_count}</td>
+          <td>
+            <span class="status-badge ${cnt.is_enabled ? 'status-connected' : 'status-disconnected'}">
+              ${cnt.is_enabled ? 'enabled' : 'disabled'}
+            </span>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ${counters.length > 5 ? `<a href="/channels/${channel.id}/counters">View all ${counters.length} counters &rarr;</a>` : ''}
+    ` : `
+    <p class="empty-state">No counters yet. <a href="/channels/${channel.id}/counters/new">Create one</a>.</p>
+    `}
+  </section>
+
+  <section class="section danger-zone">
+    <h2>Danger Zone</h2>
+    <div class="button-group">
+      ${channel.is_active ? `
+      <form action="/channels/${channel.id}/disconnect" method="POST" class="inline-form">
+        <button type="submit" class="btn btn-warning" onclick="return confirm('Disconnect this channel?')">Disconnect Channel</button>
+      </form>
+      ` : `
+      <form action="/channels/${channel.id}/reconnect" method="POST" class="inline-form">
+        <button type="submit" class="btn btn-primary">Reconnect Channel</button>
+      </form>
+      `}
+      <form action="/channels/${channel.id}/delete" method="POST" class="inline-form">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this channel and all its data? This cannot be undone!')">Delete Channel</button>
+      </form>
+    </div>
+  </section>
+</div>
+` }) %>

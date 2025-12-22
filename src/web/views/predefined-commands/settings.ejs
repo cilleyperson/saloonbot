@@ -1,0 +1,90 @@
+<%- include('../layout', { body: `
+<div class="predefined-settings-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
+      <h1>${commandInfo.emoji} ${commandInfo.displayName}</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Command Info</h3>
+    <dl class="info-list">
+      <dt>Trigger</dt>
+      <dd><code>${commandInfo.trigger}</code></dd>
+      <dt>Description</dt>
+      <dd>${commandInfo.description}</dd>
+    </dl>
+  </div>
+
+  <form action="/channels/${channel.id}/predefined/${settings.command_name}" method="POST" class="form">
+    <div class="card">
+      <h3>Settings</h3>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="is_enabled" ${settings.is_enabled ? 'checked' : ''}>
+          Enable this command
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="cooldown_seconds">Cooldown (seconds)</label>
+        <input type="number" id="cooldown_seconds" name="cooldown_seconds"
+               value="${settings.cooldown_seconds}" min="0" max="3600">
+        <small>Time between uses of this command</small>
+      </div>
+
+      <div class="form-group">
+        <label>Chat Scope</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="chat_scope" value="all" ${settings.chat_scope === 'all' ? 'checked' : ''}>
+            All Chats (works everywhere)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="chat_scope" value="selected" ${settings.chat_scope === 'selected' ? 'checked' : ''}>
+            Selected Chats Only
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group chat-scope-options" style="${settings.chat_scope !== 'selected' ? 'display: none;' : ''}">
+        <label>Select Chats</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="chat_scopes" value="__own__"
+                   ${settings.selected_chats.includes('__own__') ? 'checked' : ''}>
+            Own chat (${channel.twitch_username})
+          </label>
+          ${chatMemberships.map(m => `
+          <label class="checkbox-label">
+            <input type="checkbox" name="chat_scopes" value="${m.target_channel.toLowerCase()}"
+                   ${settings.selected_chats.includes(m.target_channel.toLowerCase()) ? 'checked' : ''}>
+            ${m.target_channel}
+          </label>
+          `).join('')}
+        </div>
+        ${chatMemberships.length === 0 ? `
+        <small>No additional chats configured. <a href="/channels/${channel.id}/chats">Add chat memberships</a> to enable this command in other channels.</small>
+        ` : ''}
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+      <a href="/channels/${channel.id}/predefined" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+document.querySelectorAll('input[name="chat_scope"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    const scopeOptions = document.querySelector('.chat-scope-options');
+    scopeOptions.style.display = this.value === 'selected' ? '' : 'none';
+  });
+});
+</script>
+` }) %>

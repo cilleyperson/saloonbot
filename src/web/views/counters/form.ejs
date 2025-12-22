@@ -1,0 +1,220 @@
+<%- include('../layout', { body: `
+<div class="counter-form-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}/counters" class="back-link">&larr; Back to Counters</a>
+      <h1>${isNew ? 'New Counter' : 'Edit Counter'}</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <form action="/channels/${channel.id}/counters${isNew ? '' : '/' + counter.id}" method="POST" class="card">
+    <div class="form-group">
+      <label for="counter_name">Counter Name</label>
+      <div class="input-suffix">
+        <input type="text" name="counter_name" id="counter_name"
+               value="${counter ? counter.counter_name : ''}"
+               class="form-control"
+               placeholder="death"
+               pattern="[a-zA-Z0-9_]+"
+               ${isNew ? '' : 'readonly'}
+               required>
+        <span class="suffix">++</span>
+      </div>
+      <small class="form-help">Letters, numbers, and underscores only. ${isNew ? '' : 'Cannot be changed after creation.'}</small>
+    </div>
+
+    <div class="form-group">
+      <label for="response_template">Response Template</label>
+      <input type="text" name="response_template" id="response_template"
+             value="${counter ? counter.response_template : '{counter} count: {count}'}"
+             class="form-control">
+      <small class="form-help">
+        Variables: <code>{counter}</code> <code>{count}</code> <code>{user}</code>
+      </small>
+    </div>
+
+    ${isNew ? `
+    <div class="form-group">
+      <label for="initial_count">Starting Count</label>
+      <input type="number" name="initial_count" id="initial_count" value="0" class="form-control" min="0">
+      <small class="form-help">Initial count value (defaults to 0)</small>
+    </div>
+    ` : `
+    <div class="form-group">
+      <label>Current Count</label>
+      <p class="form-static"><strong>${counter.current_count}</strong></p>
+      <small class="form-help">Use the Reset button on the counters list to reset to 0</small>
+    </div>
+
+    <div class="form-group">
+      <label class="toggle">
+        <input type="checkbox" name="is_enabled" ${counter.is_enabled ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+        Counter Enabled
+      </label>
+    </div>
+    `}
+
+    <div class="form-group">
+      <label>Response Emoji (optional)</label>
+      <div class="emoji-picker-container">
+        <div class="emoji-input-row">
+          <input type="text" name="emoji" id="emoji"
+                 value="${counter && counter.emoji ? counter.emoji : ''}"
+                 class="form-control emoji-input"
+                 placeholder="Click an emoji below or type one"
+                 readonly>
+          <button type="button" class="btn btn-secondary btn-small" onclick="clearEmoji()">Clear</button>
+        </div>
+        <div class="emoji-grid" id="emoji-grid">
+          <!-- Popular emojis for Twitch chat -->
+        </div>
+        <div class="emoji-position-row">
+          <label>Emoji Position:</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio">
+              <input type="radio" name="emoji_position" value="start" ${(!counter || !counter.emoji_position || counter.emoji_position === 'start') ? 'checked' : ''}>
+              <span class="radio-mark"></span>
+              Start of message
+            </label>
+            <label class="radio">
+              <input type="radio" name="emoji_position" value="end" ${counter && counter.emoji_position === 'end' ? 'checked' : ''}>
+              <span class="radio-mark"></span>
+              End of message
+            </label>
+          </div>
+        </div>
+      </div>
+      <small class="form-help">Select an emoji to prefix or suffix all responses from this counter</small>
+    </div>
+
+    <div class="form-group">
+      <label>Chat Scope</label>
+      <div class="radio-group">
+        <label class="radio">
+          <input type="radio" name="chat_scope" value="all" ${(!counter || counter.chat_scope === 'all') ? 'checked' : ''} onchange="toggleChatSelection(this)">
+          <span class="radio-mark"></span>
+          All Chats (own + memberships)
+        </label>
+        <label class="radio">
+          <input type="radio" name="chat_scope" value="selected" ${counter && counter.chat_scope === 'selected' ? 'checked' : ''} onchange="toggleChatSelection(this)">
+          <span class="radio-mark"></span>
+          Selected Chats Only
+        </label>
+      </div>
+      <small class="form-help">Choose which chats this counter responds in</small>
+    </div>
+
+    <div class="form-group chat-selection" id="chat-selection" style="display: ${counter && counter.chat_scope === 'selected' ? 'block' : 'none'};">
+      <label>Select Chats</label>
+      <div class="checkbox-group">
+        <label class="checkbox">
+          <input type="checkbox" name="chat_scopes[]" value="__own__" ${counter && counter.selected_chats && counter.selected_chats.includes('__own__') ? 'checked' : ''}>
+          <span class="checkbox-mark"></span>
+          Own Chat (${channel.twitch_username})
+        </label>
+        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => `
+        <label class="checkbox">
+          <input type="checkbox" name="chat_scopes[]" value="${m.target_channel}" ${counter && counter.selected_chats && counter.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
+          <span class="checkbox-mark"></span>
+          ${m.target_channel}
+        </label>
+        `).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
+      </div>
+      <small class="form-help">At least one chat must be selected when using "Selected Chats Only"</small>
+    </div>
+
+    <script>
+      function toggleChatSelection(radio) {
+        var chatSelection = document.getElementById('chat-selection');
+        chatSelection.style.display = radio.value === 'selected' ? 'block' : 'none';
+      }
+
+      // Emoji picker functionality
+      var popularEmojis = [
+        // Faces & Emotions
+        '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊',
+        '😇', '🥰', '😍', '🤩', '😘', '😜', '🤪', '😎', '🤓', '🧐',
+        '😏', '🥳', '😢', '😭', '😤', '🤬', '🤯', '😱', '😨', '🥺',
+        // Gaming & Fun
+        '🎮', '🕹️', '🎯', '🎲', '🃏', '🏆', '🥇', '🥈', '🥉', '🏅',
+        '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎵', '🎶', '🎸', '🥁',
+        // Objects & Symbols
+        '⭐', '🌟', '✨', '💫', '🔥', '💥', '💯', '❤️', '🧡', '💛',
+        '💚', '💙', '💜', '🖤', '🤍', '💔', '❣️', '💕', '💖', '💝',
+        '👍', '👎', '👏', '🙌', '🤝', '✌️', '🤞', '🤟', '🤘', '👊',
+        '💪', '🦾', '🧠', '👀', '👁️', '👅', '🗣️', '💬', '💭', '🗨️',
+        // Nature & Animals
+        '🐱', '🐶', '🐵', '🦊', '🦁', '🐯', '🐻', '🐼', '🐨', '🐸',
+        '🦄', '🐲', '🐉', '🦖', '🦕', '🐍', '🐢', '🐙', '🦑', '🦀',
+        // Food & Drink
+        '🍕', '🍔', '🍟', '🌭', '🍿', '🧁', '🍩', '🍪', '🎂', '🍰',
+        '☕', '🍵', '🧃', '🍺', '🍻', '🥤', '🧋', '🍷', '🍸', '🥂',
+        // Misc
+        '🚀', '✈️', '🎁', '🎀', '🎈', '🎉', '🎊', '🏠', '⚡', '☀️',
+        '🌙', '⭐', '🌈', '☁️', '❄️', '🌊', '💎', '🔮', '🧲', '⚙️'
+      ];
+
+      function initEmojiPicker() {
+        var grid = document.getElementById('emoji-grid');
+        if (!grid) return;
+
+        // Clear existing children using safe DOM method
+        while (grid.firstChild) {
+          grid.removeChild(grid.firstChild);
+        }
+
+        popularEmojis.forEach(function(emoji) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'emoji-btn';
+          btn.textContent = emoji;
+          btn.onclick = function() { selectEmoji(emoji); };
+          grid.appendChild(btn);
+        });
+      }
+
+      function selectEmoji(emoji) {
+        document.getElementById('emoji').value = emoji;
+        // Highlight selected emoji button
+        var buttons = document.querySelectorAll('.emoji-btn');
+        buttons.forEach(function(btn) {
+          btn.classList.remove('selected');
+          if (btn.textContent === emoji) {
+            btn.classList.add('selected');
+          }
+        });
+      }
+
+      function clearEmoji() {
+        document.getElementById('emoji').value = '';
+        var buttons = document.querySelectorAll('.emoji-btn');
+        buttons.forEach(function(btn) {
+          btn.classList.remove('selected');
+        });
+      }
+
+      // Initialize emoji picker on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        initEmojiPicker();
+        // Highlight currently selected emoji if any
+        var currentEmoji = document.getElementById('emoji').value;
+        if (currentEmoji) {
+          var buttons = document.querySelectorAll('.emoji-btn');
+          buttons.forEach(function(btn) {
+            if (btn.textContent === currentEmoji) {
+              btn.classList.add('selected');
+            }
+          });
+        }
+      });
+    </script>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">${isNew ? 'Create Counter' : 'Save Changes'}</button>
+      <a href="/channels/${channel.id}/counters" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+` }) %>

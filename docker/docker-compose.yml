@@ -1,0 +1,57 @@
+# Saloon Bot - Docker Compose Configuration
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up -d
+#   docker compose -f docker/docker-compose.yml logs -f
+#   docker compose -f docker/docker-compose.yml down
+#
+# Or use the helper scripts in docker/scripts/
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: saloon-bot
+    restart: unless-stopped
+
+    # Environment variables
+    env_file:
+      - ../.env
+
+    environment:
+      # Override database path for container
+      - DATABASE_PATH=/app/data/bot.db
+      # Ensure proper logging
+      - NODE_ENV=production
+
+    # Port mapping for web interface
+    ports:
+      - "${PORT:-3000}:3000"
+
+    # Persistent storage for database and logs
+    volumes:
+      - bot-data:/app/data
+      - bot-logs:/app/logs
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Named volumes for data persistence
+volumes:
+  bot-data:
+    name: saloon-bot-data
+  bot-logs:
+    name: saloon-bot-logs

@@ -1,0 +1,155 @@
+<%- include('../layout', { body: `
+<div class="responses-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}/commands/${command.id}/edit" class="back-link">&larr; Back to Command</a>
+      <h1>Responses for !${command.command_name}</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Add New Response</h3>
+    <form action="/channels/${channel.id}/commands/${command.id}/responses" method="POST" class="add-response-form">
+      <div class="form-group">
+        <label for="response_text">Response Text</label>
+        <textarea name="response_text" id="response_text" rows="3" class="form-control" required></textarea>
+        <small class="form-help">
+          Variables: <code>{user}</code> <code>{channel}</code> <code>{args}</code> <code>{arg1}</code> <code>{arg2}</code> <code>{arg3}</code>
+        </small>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="weight">Weight</label>
+          <input type="number" name="weight" id="weight" value="1" min="1" max="100" class="form-control">
+          <small class="form-help">Higher weight = more likely to be selected (1-100)</small>
+        </div>
+        <div class="form-group form-actions-inline">
+          <button type="submit" class="btn btn-primary">Add Response</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  ${responses.length > 0 ? `
+  <div class="card">
+    <h3>Existing Responses (${pagination.total} total)</h3>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width: 50%;">Response</th>
+            <th>Weight</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${responses.map((resp, index) => `
+          <tr class="${resp.is_enabled ? '' : 'disabled'}" id="response-${resp.id}">
+            <td>
+              <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}" method="POST" class="inline-edit-form">
+                <textarea name="response_text" rows="2" class="form-control" required>${resp.response_text}</textarea>
+            </td>
+            <td>
+                <input type="number" name="weight" value="${resp.weight}" min="1" max="100" class="form-control form-control-small">
+            </td>
+            <td>
+                <label class="toggle">
+                  <input type="checkbox" name="is_enabled" ${resp.is_enabled ? 'checked' : ''}>
+                  <span class="toggle-slider"></span>
+                </label>
+            </td>
+            <td class="actions">
+                <button type="submit" class="btn btn-small btn-primary">Save</button>
+              </form>
+              <form action="/channels/${channel.id}/commands/${command.id}/responses/${resp.id}/delete" method="POST" class="inline-form">
+                <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this response?')">Delete</button>
+              </form>
+            </td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    ${pagination.pages > 1 ? `
+    <div class="pagination">
+      ${pagination.page > 1 ? `
+        <a href="/channels/${channel.id}/commands/${command.id}/responses?page=${pagination.page - 1}" class="btn btn-small btn-secondary">&laquo; Previous</a>
+      ` : ''}
+
+      <span class="pagination-info">Page ${pagination.page} of ${pagination.pages}</span>
+
+      ${pagination.page < pagination.pages ? `
+        <a href="/channels/${channel.id}/commands/${command.id}/responses?page=${pagination.page + 1}" class="btn btn-small btn-secondary">Next &raquo;</a>
+      ` : ''}
+    </div>
+    ` : ''}
+  </div>
+  ` : `
+  <div class="empty-state">
+    <p>No responses configured yet. Add one above to get started!</p>
+  </div>
+  `}
+</div>
+
+<style>
+  .add-response-form {
+    margin-bottom: 0;
+  }
+
+  .form-actions-inline {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 0.5rem;
+  }
+
+  .inline-edit-form {
+    display: contents;
+  }
+
+  .form-control-small {
+    width: 80px;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--border-color, #dee2e6);
+    margin-top: 1rem;
+  }
+
+  .pagination-info {
+    color: var(--text-muted, #6c757d);
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .inline-form {
+    display: inline;
+  }
+
+  tr.disabled {
+    opacity: 0.6;
+  }
+
+  .info-box {
+    background-color: var(--bg-secondary, #f8f9fa);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+    padding: 1rem;
+  }
+
+  .info-box p {
+    margin: 0 0 0.5rem 0;
+  }
+</style>
+` }) %>

@@ -1,0 +1,51 @@
+<%- include('../layout', { body: `
+<div class="channels-page">
+  <div class="page-header">
+    <h1>Channels</h1>
+    <a href="/channels/add" class="btn btn-primary">Add Channel</a>
+  </div>
+
+  ${typeof channels !== 'undefined' && channels.length > 0 ? `
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Commands</th>
+          <th>Counters</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${channels.map(channel => `
+        <tr class="${channel.is_active ? '' : 'inactive'}">
+          <td>
+            <strong>${channel.display_name || channel.twitch_username}</strong>
+            <br><small>@${channel.twitch_username}</small>
+          </td>
+          <td>
+            <span class="status-badge ${channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected'}">
+              ${channel.is_active ? channel.status.status : 'inactive'}
+            </span>
+          </td>
+          <td>${channel.commandCount}</td>
+          <td>${channel.counterCount}</td>
+          <td class="actions">
+            <a href="/channels/${channel.id}" class="btn btn-small">Manage</a>
+            <a href="/channels/${channel.id}/commands" class="btn btn-small btn-secondary">Commands</a>
+            <a href="/channels/${channel.id}/counters" class="btn btn-small btn-secondary">Counters</a>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  ` : `
+  <div class="empty-state">
+    <p>No channels configured yet.</p>
+    <a href="/channels/add" class="btn btn-primary">Add Your First Channel</a>
+  </div>
+  `}
+</div>
+` }) %>

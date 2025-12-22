@@ -1,0 +1,57 @@
+# Saloon Bot - Development Docker Compose Configuration
+#
+# This configuration is optimized for development:
+# - Mounts source code for live reloading
+# - Uses development environment
+# - Exposes additional debugging ports if needed
+#
+# Usage:
+#   docker compose -f docker/docker-compose.dev.yml up
+#   docker compose -f docker/docker-compose.dev.yml up --build
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: builder  # Use builder stage for dev dependencies
+    container_name: saloon-bot-dev
+    restart: "no"
+
+    # Environment variables
+    env_file:
+      - ../.env
+
+    environment:
+      - DATABASE_PATH=/app/data/bot.db
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+
+    # Port mapping
+    ports:
+      - "${PORT:-3000}:3000"
+
+    # Mount source code for development
+    volumes:
+      - ../src:/app/src:ro
+      - ../public:/app/public:ro
+      - ../index.js:/app/index.js:ro
+      - ../package.json:/app/package.json:ro
+      - bot-data-dev:/app/data
+      - bot-logs-dev:/app/logs
+
+    # Override command for development with file watching
+    command: ["node", "--watch", "index.js"]
+
+    # Logging to console
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+volumes:
+  bot-data-dev:
+    name: saloon-bot-data-dev
+  bot-logs-dev:
+    name: saloon-bot-logs-dev

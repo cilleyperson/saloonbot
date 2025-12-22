@@ -1,0 +1,281 @@
+<%- include('../layout', { body: `
+<div class="command-form-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}/commands" class="back-link">&larr; Back to Commands</a>
+      <h1>${isNew ? 'New Command' : 'Edit Command'}</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <form action="/channels/${channel.id}/commands${isNew ? '' : '/' + command.id}" method="POST" class="card">
+    <div class="form-group">
+      <label for="command_name">Command Name</label>
+      <div class="input-prefix">
+        <span class="prefix">!</span>
+        <input type="text" name="command_name" id="command_name"
+               value="${command ? command.command_name : ''}"
+               class="form-control"
+               placeholder="hello"
+               pattern="[a-zA-Z0-9_]+"
+               ${isNew ? '' : 'readonly'}
+               required>
+      </div>
+      <small class="form-help">Letters, numbers, and underscores only. ${isNew ? '' : 'Cannot be changed after creation.'}</small>
+    </div>
+
+    <div class="form-group">
+      <label>Response Mode</label>
+      <div class="radio-group">
+        <label class="radio">
+          <input type="radio" name="response_mode" value="single" ${(!command || command.response_mode === 'single') ? 'checked' : ''} onchange="toggleResponseMode(this)">
+          <span class="radio-mark"></span>
+          Single Response
+        </label>
+        <label class="radio">
+          <input type="radio" name="response_mode" value="random" ${command && command.response_mode === 'random' ? 'checked' : ''} onchange="toggleResponseMode(this)">
+          <span class="radio-mark"></span>
+          Random from List
+        </label>
+      </div>
+      <small class="form-help">Choose whether the command uses a single response or picks randomly from a list</small>
+    </div>
+
+    <div class="form-group single-response-section" id="single-response-section" style="display: ${command && command.response_mode === 'random' ? 'none' : 'block'};">
+      <label for="response">Response</label>
+      <textarea name="response" id="response" rows="4" class="form-control">${command ? command.response : ''}</textarea>
+      <small class="form-help">
+        Variables: <code>{user}</code> <code>{channel}</code> <code>{args}</code> <code>{arg1}</code> <code>{arg2}</code> <code>{arg3}</code>
+      </small>
+    </div>
+
+    ${!isNew && command && command.response_mode === 'random' ? `
+    <div class="form-group random-response-section" id="random-response-section">
+      <label>Random Responses</label>
+      <div class="info-box">
+        <p>This command uses random responses. <strong>${responseCount || 0}</strong> response(s) configured.</p>
+        <a href="/channels/${channel.id}/commands/${command.id}/responses" class="btn btn-secondary">Manage Responses</a>
+      </div>
+      <small class="form-help">
+        Variables available in responses: <code>{user}</code> <code>{channel}</code> <code>{args}</code> <code>{arg1}</code> <code>{arg2}</code> <code>{arg3}</code>
+      </small>
+    </div>
+    ` : ''}
+
+    ${!isNew ? '' : `
+    <div class="form-group random-response-hint" id="random-response-hint" style="display: ${command && command.response_mode === 'random' ? 'block' : 'none'};">
+      <div class="info-box info-box-warning">
+        <p>After creating the command, you can add multiple responses from the command's edit page.</p>
+      </div>
+    </div>
+    `}
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="cooldown_seconds">Cooldown (seconds)</label>
+        <input type="number" name="cooldown_seconds" id="cooldown_seconds"
+               value="${command ? command.cooldown_seconds : 5}"
+               class="form-control"
+               min="0" max="3600">
+        <small class="form-help">Time between uses (0-3600)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="user_level">User Level</label>
+        <select name="user_level" id="user_level" class="form-control">
+          ${userLevels.map(level => `
+            <option value="${level}" ${command && command.user_level === level ? 'selected' : ''}>${level}</option>
+          `).join('')}
+        </select>
+        <small class="form-help">Minimum permission level required</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Response Emoji (optional)</label>
+      <div class="emoji-picker-container">
+        <div class="emoji-input-row">
+          <input type="text" name="emoji" id="emoji"
+                 value="${command && command.emoji ? command.emoji : ''}"
+                 class="form-control emoji-input"
+                 placeholder="Click an emoji below or type one"
+                 readonly>
+          <button type="button" class="btn btn-secondary btn-small" onclick="clearEmoji()">Clear</button>
+        </div>
+        <div class="emoji-grid" id="emoji-grid">
+          <!-- Popular emojis for Twitch chat -->
+        </div>
+        <div class="emoji-position-row">
+          <label>Emoji Position:</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio">
+              <input type="radio" name="emoji_position" value="start" ${(!command || !command.emoji_position || command.emoji_position === 'start') ? 'checked' : ''}>
+              <span class="radio-mark"></span>
+              Start of message
+            </label>
+            <label class="radio">
+              <input type="radio" name="emoji_position" value="end" ${command && command.emoji_position === 'end' ? 'checked' : ''}>
+              <span class="radio-mark"></span>
+              End of message
+            </label>
+          </div>
+        </div>
+      </div>
+      <small class="form-help">Select an emoji to prefix or suffix all responses from this command</small>
+    </div>
+
+    ${!isNew ? `
+    <div class="form-group">
+      <label class="toggle">
+        <input type="checkbox" name="is_enabled" ${command.is_enabled ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+        Command Enabled
+      </label>
+    </div>
+    ` : ''}
+
+    <div class="form-group">
+      <label>Chat Scope</label>
+      <div class="radio-group">
+        <label class="radio">
+          <input type="radio" name="chat_scope" value="all" ${(!command || command.chat_scope === 'all') ? 'checked' : ''} onchange="toggleChatSelection(this)">
+          <span class="radio-mark"></span>
+          All Chats (own + memberships)
+        </label>
+        <label class="radio">
+          <input type="radio" name="chat_scope" value="selected" ${command && command.chat_scope === 'selected' ? 'checked' : ''} onchange="toggleChatSelection(this)">
+          <span class="radio-mark"></span>
+          Selected Chats Only
+        </label>
+      </div>
+      <small class="form-help">Choose which chats this command responds in</small>
+    </div>
+
+    <div class="form-group chat-selection" id="chat-selection" style="display: ${command && command.chat_scope === 'selected' ? 'block' : 'none'};">
+      <label>Select Chats</label>
+      <div class="checkbox-group">
+        <label class="checkbox">
+          <input type="checkbox" name="chat_scopes[]" value="__own__" ${command && command.selected_chats && command.selected_chats.includes('__own__') ? 'checked' : ''}>
+          <span class="checkbox-mark"></span>
+          Own Chat (${channel.twitch_username})
+        </label>
+        ${chatMemberships && chatMemberships.length > 0 ? chatMemberships.map(m => `
+        <label class="checkbox">
+          <input type="checkbox" name="chat_scopes[]" value="${m.target_channel}" ${command && command.selected_chats && command.selected_chats.includes(m.target_channel) ? 'checked' : ''}>
+          <span class="checkbox-mark"></span>
+          ${m.target_channel}
+        </label>
+        `).join('') : '<p class="empty-hint">No chat memberships configured. <a href="/channels/' + channel.id + '/chats/new">Add one</a>.</p>'}
+      </div>
+      <small class="form-help">At least one chat must be selected when using "Selected Chats Only"</small>
+    </div>
+
+    <script>
+      function toggleChatSelection(radio) {
+        var chatSelection = document.getElementById('chat-selection');
+        chatSelection.style.display = radio.value === 'selected' ? 'block' : 'none';
+      }
+
+      function toggleResponseMode(radio) {
+        var singleSection = document.getElementById('single-response-section');
+        var randomHint = document.getElementById('random-response-hint');
+        var responseField = document.getElementById('response');
+
+        if (radio.value === 'random') {
+          if (singleSection) singleSection.style.display = 'none';
+          if (randomHint) randomHint.style.display = 'block';
+          if (responseField) responseField.removeAttribute('required');
+        } else {
+          if (singleSection) singleSection.style.display = 'block';
+          if (randomHint) randomHint.style.display = 'none';
+          if (responseField) responseField.setAttribute('required', 'required');
+        }
+      }
+
+      // Emoji picker functionality
+      var popularEmojis = [
+        // Faces & Emotions
+        '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊',
+        '😇', '🥰', '😍', '🤩', '😘', '😜', '🤪', '😎', '🤓', '🧐',
+        '😏', '🥳', '😢', '😭', '😤', '🤬', '🤯', '😱', '😨', '🥺',
+        // Gaming & Fun
+        '🎮', '🕹️', '🎯', '🎲', '🃏', '🏆', '🥇', '🥈', '🥉', '🏅',
+        '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎵', '🎶', '🎸', '🥁',
+        // Objects & Symbols
+        '⭐', '🌟', '✨', '💫', '🔥', '💥', '💯', '❤️', '🧡', '💛',
+        '💚', '💙', '💜', '🖤', '🤍', '💔', '❣️', '💕', '💖', '💝',
+        '👍', '👎', '👏', '🙌', '🤝', '✌️', '🤞', '🤟', '🤘', '👊',
+        '💪', '🦾', '🧠', '👀', '👁️', '👅', '🗣️', '💬', '💭', '🗨️',
+        // Nature & Animals
+        '🐱', '🐶', '🐵', '🦊', '🦁', '🐯', '🐻', '🐼', '🐨', '🐸',
+        '🦄', '🐲', '🐉', '🦖', '🦕', '🐍', '🐢', '🐙', '🦑', '🦀',
+        // Food & Drink
+        '🍕', '🍔', '🍟', '🌭', '🍿', '🧁', '🍩', '🍪', '🎂', '🍰',
+        '☕', '🍵', '🧃', '🍺', '🍻', '🥤', '🧋', '🍷', '🍸', '🥂',
+        // Misc
+        '🚀', '✈️', '🎁', '🎀', '🎈', '🎉', '🎊', '🏠', '⚡', '☀️',
+        '🌙', '⭐', '🌈', '☁️', '❄️', '🌊', '💎', '🔮', '🧲', '⚙️'
+      ];
+
+      function initEmojiPicker() {
+        var grid = document.getElementById('emoji-grid');
+        if (!grid) return;
+
+        // Clear existing children using safe DOM method
+        while (grid.firstChild) {
+          grid.removeChild(grid.firstChild);
+        }
+
+        popularEmojis.forEach(function(emoji) {
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'emoji-btn';
+          btn.textContent = emoji;
+          btn.onclick = function() { selectEmoji(emoji); };
+          grid.appendChild(btn);
+        });
+      }
+
+      function selectEmoji(emoji) {
+        document.getElementById('emoji').value = emoji;
+        // Highlight selected emoji button
+        var buttons = document.querySelectorAll('.emoji-btn');
+        buttons.forEach(function(btn) {
+          btn.classList.remove('selected');
+          if (btn.textContent === emoji) {
+            btn.classList.add('selected');
+          }
+        });
+      }
+
+      function clearEmoji() {
+        document.getElementById('emoji').value = '';
+        var buttons = document.querySelectorAll('.emoji-btn');
+        buttons.forEach(function(btn) {
+          btn.classList.remove('selected');
+        });
+      }
+
+      // Initialize emoji picker on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        initEmojiPicker();
+        // Highlight currently selected emoji if any
+        var currentEmoji = document.getElementById('emoji').value;
+        if (currentEmoji) {
+          var buttons = document.querySelectorAll('.emoji-btn');
+          buttons.forEach(function(btn) {
+            if (btn.textContent === currentEmoji) {
+              btn.classList.add('selected');
+            }
+          });
+        }
+      });
+    </script>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">${isNew ? 'Create Command' : 'Save Changes'}</button>
+      <a href="/channels/${channel.id}/commands" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+` }) %>

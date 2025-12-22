@@ -1,0 +1,44 @@
+# Dependencies
+/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# Docker
+docker/.env
+
+# Backups
+backups/
+
+# SSL Certificates (generated locally)
+certs/
+*.pem
+*.key
+*.crt
+/docs/

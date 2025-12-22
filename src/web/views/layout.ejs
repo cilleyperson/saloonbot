@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - Saloon Bot</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <a href="/">Saloon Bot</a>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/" class="<%= title === 'Dashboard' ? 'active' : '' %>">Dashboard</a></li>
+      <li><a href="/channels" class="<%= title === 'Channels' ? 'active' : '' %>">Channels</a></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <% if (flash && flash.success) { %>
+      <div class="alert alert-success">
+        <%= flash.success %>
+      </div>
+    <% } %>
+
+    <% if (flash && flash.error) { %>
+      <div class="alert alert-error">
+        <%= flash.error %>
+      </div>
+    <% } %>
+
+    <% if (flash && flash.info) { %>
+      <div class="alert alert-info">
+        <%= flash.info %>
+      </div>
+    <% } %>
+
+    <%- body %>
+  </main>
+
+  <footer class="footer">
+    <p>Saloon Bot &copy; <%= new Date().getFullYear() %></p>
+  </footer>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

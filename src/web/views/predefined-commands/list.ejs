@@ -1,0 +1,75 @@
+<%- include('../layout', { body: `
+<div class="predefined-commands-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <h1>Predefined Commands</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+  </div>
+
+  <p class="info-box">
+    Predefined commands are built-in bot features that you can enable or disable per channel.
+    Each command can be configured with cooldowns and chat scopes.
+  </p>
+
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Command</th>
+          <th>Description</th>
+          <th>Status</th>
+          <th>Cooldown</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${commands.map(cmd => `
+        <tr class="${cmd.is_enabled ? '' : 'disabled'}">
+          <td>
+            <span class="command-emoji">${cmd.info?.emoji || ''}</span>
+            <code>${cmd.info?.trigger || '!' + cmd.command_name}</code>
+          </td>
+          <td>${cmd.info?.description || ''}</td>
+          <td>
+            <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
+              ${cmd.is_enabled ? 'enabled' : 'disabled'}
+            </span>
+          </td>
+          <td>${cmd.cooldown_seconds}s</td>
+          <td class="actions">
+            <a href="/channels/${channel.id}/predefined/${cmd.command_name}" class="btn btn-small">Configure</a>
+            <form action="/channels/${channel.id}/predefined/${cmd.command_name}/toggle" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
+            </form>
+            ${cmd.command_name === 'ball' ? `
+            <a href="/channels/${channel.id}/predefined/ball/responses" class="btn btn-small btn-secondary">Responses</a>
+            ` : ''}
+            ${cmd.command_name === 'define' ? `
+            <a href="/channels/${channel.id}/predefined/define/definitions" class="btn btn-small btn-secondary">Custom Words</a>
+            ` : ''}
+            ${cmd.command_name === 'rps' ? `
+            <a href="/channels/${channel.id}/predefined/rps/stats" class="btn btn-small btn-secondary">Leaderboard</a>
+            ` : ''}
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.command-emoji {
+  font-size: 1.2em;
+  margin-right: 0.5em;
+}
+.info-box {
+  background: var(--bg-secondary, #f5f5f5);
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+</style>
+` }) %>

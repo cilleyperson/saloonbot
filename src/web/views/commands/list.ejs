@@ -1,0 +1,63 @@
+<%- include('../layout', { body: `
+<div class="commands-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <h1>Commands</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+    <a href="/channels/${channel.id}/commands/new" class="btn btn-primary">Add Command</a>
+  </div>
+
+  ${commands.length > 0 ? `
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Command</th>
+          <th>Response</th>
+          <th>Cooldown</th>
+          <th>Level</th>
+          <th>Uses</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${commands.map(cmd => `
+        <tr class="${cmd.is_enabled ? '' : 'disabled'}">
+          <td><code>!${cmd.command_name}</code></td>
+          <td class="truncate" title="${cmd.response_mode === 'random' ? 'Random responses' : cmd.response.replace(/"/g, '&quot;')}">
+            ${cmd.response_mode === 'random' ? '<span class="badge badge-info">Random</span>' : cmd.response}
+          </td>
+          <td>${cmd.cooldown_seconds}s</td>
+          <td>${cmd.user_level}</td>
+          <td>${cmd.use_count}</td>
+          <td>
+            <span class="status-badge ${cmd.is_enabled ? 'status-connected' : 'status-disconnected'}">
+              ${cmd.is_enabled ? 'enabled' : 'disabled'}
+            </span>
+          </td>
+          <td class="actions">
+            <a href="/channels/${channel.id}/commands/${cmd.id}/edit" class="btn btn-small">Edit</a>
+            ${cmd.response_mode === 'random' ? `<a href="/channels/${channel.id}/commands/${cmd.id}/responses" class="btn btn-small btn-secondary">Responses</a>` : ''}
+            <form action="/channels/${channel.id}/commands/${cmd.id}/toggle" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-secondary">${cmd.is_enabled ? 'Disable' : 'Enable'}</button>
+            </form>
+            <form action="/channels/${channel.id}/commands/${cmd.id}/delete" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Delete this command?')">Delete</button>
+            </form>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  ` : `
+  <div class="empty-state">
+    <p>No commands yet.</p>
+    <a href="/channels/${channel.id}/commands/new" class="btn btn-primary">Create Your First Command</a>
+  </div>
+  `}
+</div>
+` }) %>

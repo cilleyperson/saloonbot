@@ -1,0 +1,65 @@
+<%- include('../layout', { body: `
+<div class="chat-memberships-page">
+  <div class="page-header">
+    <div>
+      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <h1>Chat Memberships</h1>
+      <p class="subtitle">${channel.display_name || channel.twitch_username}</p>
+    </div>
+    <a href="/channels/${channel.id}/chats/new" class="btn btn-primary">Join Chat</a>
+  </div>
+
+  <div class="card info-card">
+    <p><strong>What are Chat Memberships?</strong></p>
+    <p>Chat memberships allow the bot to join and participate in other Twitch channels' chats on your behalf.
+       The bot automatically joins your own channel, but you can add additional channels here.</p>
+    <p><small>Currently in ${joinedChats.length} chat${joinedChats.length !== 1 ? 's' : ''}: ${joinedChats.join(', ') || 'none'}</small></p>
+  </div>
+
+  ${memberships.length > 0 ? `
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Added</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${memberships.map(mem => `
+        <tr class="${mem.is_active ? '' : 'disabled'}">
+          <td>
+            <a href="https://twitch.tv/${mem.target_channel}" target="_blank" rel="noopener noreferrer">
+              ${mem.target_channel}
+            </a>
+          </td>
+          <td>
+            <span class="status-badge ${mem.is_active ? 'status-connected' : 'status-disconnected'}">
+              ${mem.is_active ? 'active' : 'inactive'}
+            </span>
+          </td>
+          <td>${new Date(mem.created_at).toLocaleDateString()}</td>
+          <td class="actions">
+            <form action="/channels/${channel.id}/chats/${mem.id}/toggle" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-secondary">${mem.is_active ? 'Disable' : 'Enable'}</button>
+            </form>
+            <form action="/channels/${channel.id}/chats/${mem.id}/delete" method="POST" class="inline-form">
+              <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Remove this chat membership?')">Remove</button>
+            </form>
+          </td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  ` : `
+  <div class="empty-state">
+    <p>No additional chat memberships configured.</p>
+    <p><small>The bot automatically joins your own channel (${channel.twitch_username}).</small></p>
+    <a href="/channels/${channel.id}/chats/new" class="btn btn-primary">Join Another Chat</a>
+  </div>
+  `}
+</div>
+` }) %>

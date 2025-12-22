@@ -1,0 +1,77 @@
+<%- include('layout', { body: `
+<div class="dashboard">
+  <h1>Dashboard</h1>
+
+  ${typeof needsBotAuth !== 'undefined' && needsBotAuth ? `
+  <div class="alert alert-warning">
+    <strong>Bot Not Authenticated</strong>
+    <p>The bot needs to be authenticated with Twitch before it can work.</p>
+    <a href="/auth/bot" class="btn btn-primary">Authenticate Bot</a>
+  </div>
+  ` : ''}
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">${typeof botStatus !== 'undefined' && botStatus.running ? 'Online' : 'Offline'}</div>
+      <div class="stat-label">Bot Status</div>
+      <div class="stat-indicator ${typeof botStatus !== 'undefined' && botStatus.running ? 'online' : 'offline'}"></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-value">${typeof stats !== 'undefined' ? stats.channels : 0}</div>
+      <div class="stat-label">Active Channels</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-value">${typeof stats !== 'undefined' ? stats.commands : 0}</div>
+      <div class="stat-label">Total Commands</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-value">${typeof stats !== 'undefined' ? stats.counters : 0}</div>
+      <div class="stat-label">Total Counters</div>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>Connected Channels</h2>
+      <a href="/channels/add" class="btn btn-primary">Add Channel</a>
+    </div>
+
+    ${typeof channels !== 'undefined' && channels.length > 0 ? `
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${channels.map(channel => `
+          <tr>
+            <td>
+              <strong>${channel.display_name || channel.twitch_username}</strong>
+              <br><small>@${channel.twitch_username}</small>
+            </td>
+            <td>
+              <span class="status-badge ${channel.status.status === 'connected' ? 'status-connected' : 'status-disconnected'}">
+                ${channel.status.status}
+              </span>
+            </td>
+            <td>
+              <a href="/channels/${channel.id}" class="btn btn-small">Manage</a>
+            </td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : `
+    <p class="empty-state">No channels connected yet. <a href="/channels/add">Add your first channel</a>.</p>
+    `}
+  </section>
+</div>
+` }) %>
