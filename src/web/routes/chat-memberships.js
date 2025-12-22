@@ -10,7 +10,7 @@ const logger = createChildLogger('chat-membership-routes');
 /**
  * List chat memberships for a channel
  */
-router.get('/:id/chats', (req, res) => {
+router.get('/:id/chat-memberships', (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const channel = channelRepo.findById(channelId);
 
@@ -33,7 +33,7 @@ router.get('/:id/chats', (req, res) => {
 /**
  * New chat membership form
  */
-router.get('/:id/chats/new', (req, res) => {
+router.get('/:id/chat-memberships/new', (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const channel = channelRepo.findById(channelId);
 
@@ -53,7 +53,7 @@ router.get('/:id/chats/new', (req, res) => {
 /**
  * Create chat membership
  */
-router.post('/:id/chats', async (req, res) => {
+router.post('/:id/chat-memberships', async (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const channel = channelRepo.findById(channelId);
 
@@ -70,7 +70,7 @@ router.post('/:id/chats', async (req, res) => {
     // Validate target_channel exists
     if (!target_channel) {
       req.flash('error', 'Target channel is required');
-      return res.redirect(`/channels/${channelId}/chats/new`);
+      return res.redirect(`/channels/${channelId}/chat-memberships/new`);
     }
 
     // Clean up target channel name
@@ -79,19 +79,19 @@ router.post('/:id/chats', async (req, res) => {
     // Validate format
     if (!target_channel || !target_channel.match(/^[a-z0-9_]+$/)) {
       req.flash('error', 'Channel name must be alphanumeric (letters, numbers, underscores only)');
-      return res.redirect(`/channels/${channelId}/chats/new`);
+      return res.redirect(`/channels/${channelId}/chat-memberships/new`);
     }
 
     // Check if already exists
     if (chatMembershipRepo.exists(channelId, target_channel)) {
       req.flash('error', `Already configured to join ${target_channel}`);
-      return res.redirect(`/channels/${channelId}/chats/new`);
+      return res.redirect(`/channels/${channelId}/chat-memberships/new`);
     }
 
     // Prevent joining own channel (it's automatic)
     if (target_channel === channel.twitch_username) {
       req.flash('error', 'The bot automatically joins your own channel');
-      return res.redirect(`/channels/${channelId}/chats/new`);
+      return res.redirect(`/channels/${channelId}/chat-memberships/new`);
     }
 
     // Add the membership and join if bot is running
@@ -103,25 +103,25 @@ router.post('/:id/chats', async (req, res) => {
 
     logger.info(`Chat membership created: ${channel.twitch_username} -> ${target_channel}`);
     req.flash('success', `Now joining chat: ${target_channel}`);
-    res.redirect(`/channels/${channelId}/chats`);
+    res.redirect(`/channels/${channelId}/chat-memberships`);
   } catch (err) {
     logger.error('Failed to create chat membership', { error: err.message });
     req.flash('error', `Failed to join chat: ${err.message}`);
-    res.redirect(`/channels/${channelId}/chats/new`);
+    res.redirect(`/channels/${channelId}/chat-memberships/new`);
   }
 });
 
 /**
  * Toggle chat membership active status
  */
-router.post('/:id/chats/:memId/toggle', async (req, res) => {
+router.post('/:id/chat-memberships/:memId/toggle', async (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const memId = parseInt(req.params.memId, 10);
 
   const membership = chatMembershipRepo.findById(memId);
   if (!membership || membership.channel_id !== channelId) {
     req.flash('error', 'Chat membership not found');
-    return res.redirect(`/channels/${channelId}/chats`);
+    return res.redirect(`/channels/${channelId}/chat-memberships`);
   }
 
   try {
@@ -137,20 +137,20 @@ router.post('/:id/chats/:memId/toggle', async (req, res) => {
     req.flash('error', `Failed to toggle chat: ${err.message}`);
   }
 
-  res.redirect(`/channels/${channelId}/chats`);
+  res.redirect(`/channels/${channelId}/chat-memberships`);
 });
 
 /**
  * Delete chat membership
  */
-router.post('/:id/chats/:memId/delete', async (req, res) => {
+router.post('/:id/chat-memberships/:memId/delete', async (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const memId = parseInt(req.params.memId, 10);
 
   const membership = chatMembershipRepo.findById(memId);
   if (!membership || membership.channel_id !== channelId) {
     req.flash('error', 'Chat membership not found');
-    return res.redirect(`/channels/${channelId}/chats`);
+    return res.redirect(`/channels/${channelId}/chat-memberships`);
   }
 
   try {
@@ -166,7 +166,7 @@ router.post('/:id/chats/:memId/delete', async (req, res) => {
     req.flash('error', `Failed to remove chat: ${err.message}`);
   }
 
-  res.redirect(`/channels/${channelId}/chats`);
+  res.redirect(`/channels/${channelId}/chat-memberships`);
 });
 
 module.exports = router;
