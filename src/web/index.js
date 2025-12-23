@@ -163,36 +163,27 @@ function createApp() {
   // CSRF protection (must come after cookie-parser, session, and session init)
   // Wrap with error handling to log CSRF failures for debugging
   app.use((req, res, next) => {
-    // Log session state before CSRF validation for debugging
+    // Debug logging for login - using console.log to bypass logger redaction
     if (req.method === 'POST' && req.path.includes('login')) {
       const csrfCookie = req.cookies['saloonbot.x-csrf-token'];
       const bodyToken = req.body?._csrf;
-      logger.info('CSRF validation debug', {
-        method: req.method,
-        path: req.path,
-        sessionID: req.sessionID,
-        sessionId: req.session?.id,
-        cookieTokenLength: csrfCookie?.length,
-        bodyTokenLength: bodyToken?.length,
-        tokensMatch: csrfCookie === bodyToken,
-        cookieTokenFirst10: csrfCookie?.substring(0, 10),
-        bodyTokenFirst10: bodyToken?.substring(0, 10)
-      });
+      console.log('=== CSRF DEBUG POST ===');
+      console.log('Session ID:', req.sessionID);
+      console.log('Cookie token length:', csrfCookie?.length);
+      console.log('Body token length:', bodyToken?.length);
+      console.log('Tokens match:', csrfCookie === bodyToken);
+      console.log('Cookie first 20 chars:', csrfCookie?.substring(0, 20));
+      console.log('Body first 20 chars:', bodyToken?.substring(0, 20));
+      console.log('Cookie last 20 chars:', csrfCookie?.substring(csrfCookie?.length - 20));
+      console.log('Body last 20 chars:', bodyToken?.substring(bodyToken?.length - 20));
+      console.log('=======================');
     }
 
     doubleCsrfProtection(req, res, (err) => {
       if (err) {
-        logger.error('CSRF validation failed', {
-          error: err.message,
-          code: err.code,
-          method: req.method,
-          path: req.path,
-          hasCsrfCookie: !!req.cookies['saloonbot.x-csrf-token'],
-          hasBodyToken: !!req.body?._csrf,
-          hasHeaderToken: !!req.headers['x-csrf-token'],
-          sessionId: req.session?.id,
-          sessionInitialized: req.session?.initialized
-        });
+        console.log('=== CSRF VALIDATION FAILED ===');
+        console.log('Error:', err.message);
+        console.log('===============================');
       }
       next(err);
     });
@@ -232,15 +223,15 @@ function createApp() {
     const token = generateCsrfToken(req, res);
     res.locals.csrfToken = token;
 
-    // Log token generation for login page debugging
+    // Debug logging for login GET - using console.log to bypass logger redaction
     if (req.method === 'GET' && req.path.includes('login')) {
-      logger.info('CSRF token generated', {
-        method: req.method,
-        path: req.path,
-        sessionID: req.sessionID,
-        tokenLength: token?.length,
-        tokenFirst10: token?.substring(0, 10)
-      });
+      console.log('=== CSRF DEBUG GET ===');
+      console.log('Session ID:', req.sessionID);
+      console.log('Token length:', token?.length);
+      console.log('Token first 20 chars:', token?.substring(0, 20));
+      console.log('Token last 20 chars:', token?.substring(token?.length - 20));
+      console.log('Cookie being set:', res.getHeader('Set-Cookie'));
+      console.log('======================');
     }
     next();
   });
