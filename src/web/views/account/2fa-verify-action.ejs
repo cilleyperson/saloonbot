@@ -1,0 +1,46 @@
+<%- include('../layout', { body: `
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/account/security" class="back-link">&larr; Back to Security</a>
+      <h1 class="page-title">${title}</h1>
+      <p class="page-subtitle">Verify your identity to continue</p>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="card">
+      <div class="card-body">
+        <p class="mb-4 text-secondary">
+          For security, please verify your identity before performing this action.
+        </p>
+
+        <form action="${action}" method="POST">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+
+          ${requirePassword ? `
+          <div class="form-group">
+            <label for="password" class="form-label">Current Password</label>
+            <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
+          </div>
+          ` : ''}
+
+          <div class="form-group">
+            <label for="code" class="form-label">Authentication Code</label>
+            <input type="text" id="code" name="code" class="form-input" required
+                   autocomplete="one-time-code" inputmode="numeric"
+                   pattern="[0-9]{6}" maxlength="6" placeholder="000000"
+                   style="max-width: 200px;">
+            <p class="form-hint">Enter the 6-digit code from your authenticator app</p>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">${actionName}</button>
+            <a href="/account/security" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+`, activePage: 'security', channel: null }) %>

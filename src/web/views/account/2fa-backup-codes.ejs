@@ -1,0 +1,149 @@
+<%- include('../layout', { body: `
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-content">
+      <h1 class="page-title">${justEnabled ? 'Two-Factor Authentication Enabled!' : 'Your Backup Codes'}</h1>
+      <p class="page-subtitle">Save these codes in a secure location</p>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="alert alert-warning mb-6">
+      <strong>Important:</strong> Each backup code can only be used once. Store them securely and don't share them with anyone.
+      If you lose access to your authenticator app, you can use these codes to sign in.
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Backup Codes</h3>
+      </div>
+      <div class="card-body">
+        <div id="backup-codes-grid" class="backup-codes-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; max-width: 400px; margin-bottom: 1rem;">
+          ${backupCodes.map(function(code, i) {
+            return '<div style="font-family: monospace; font-size: 1.1rem; padding: 0.5rem 1rem; background: var(--bg-secondary); border-radius: 4px; text-align: center;">' + (i + 1) + '. ' + code + '</div>';
+          }).join('')}
+        </div>
+
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" onclick="copyBackupCodes()">
+            Copy Codes
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="printBackupCodes()">
+            Print Codes
+          </button>
+        </div>
+
+        <p class="form-hint mt-4">
+          After you leave this page, you won't be able to see these codes again.
+          You can generate new codes from the security settings page.
+        </p>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="/account/security" class="btn btn-primary">I've Saved My Backup Codes</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var backupCodesData = ${JSON.stringify(backupCodes)};
+
+  window.copyBackupCodes = function() {
+    var text = 'Saloon Bot Backup Codes\\n\\n' + backupCodesData.map(function(code, i) {
+      return (i + 1) + '. ' + code;
+    }).join('\\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        if (window.Toast) {
+          window.Toast.success('Backup codes copied to clipboard');
+        } else {
+          alert('Backup codes copied to clipboard');
+        }
+      }).catch(function() {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  };
+
+  function fallbackCopy(text) {
+    var textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      if (window.Toast) {
+        window.Toast.success('Backup codes copied to clipboard');
+      } else {
+        alert('Backup codes copied to clipboard');
+      }
+    } catch (err) {
+      alert('Failed to copy. Please copy the codes manually.');
+    }
+    document.body.removeChild(textArea);
+  }
+
+  window.printBackupCodes = function() {
+    var printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to print backup codes');
+      return;
+    }
+
+    var doc = printWindow.document;
+
+    // Build document using DOM methods
+    var html = doc.createElement('html');
+    var head = doc.createElement('head');
+    var title = doc.createElement('title');
+    title.textContent = 'Saloon Bot Backup Codes';
+    head.appendChild(title);
+
+    var style = doc.createElement('style');
+    style.textContent = 'body { font-family: monospace; padding: 2rem; } h1 { font-size: 1.5rem; } .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; max-width: 400px; } .code { padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; }';
+    head.appendChild(style);
+    html.appendChild(head);
+
+    var body = doc.createElement('body');
+
+    var h1 = doc.createElement('h1');
+    h1.textContent = 'Saloon Bot Backup Codes';
+    body.appendChild(h1);
+
+    var p1 = doc.createElement('p');
+    p1.textContent = 'Store these codes securely. Each code can only be used once.';
+    body.appendChild(p1);
+
+    var codesDiv = doc.createElement('div');
+    codesDiv.className = 'codes';
+
+    backupCodesData.forEach(function(code, i) {
+      var codeDiv = doc.createElement('div');
+      codeDiv.className = 'code';
+      codeDiv.textContent = (i + 1) + '. ' + code;
+      codesDiv.appendChild(codeDiv);
+    });
+    body.appendChild(codesDiv);
+
+    var p2 = doc.createElement('p');
+    p2.style.marginTop = '2rem';
+    p2.style.color = '#666';
+    p2.textContent = 'Generated: ' + new Date().toLocaleString();
+    body.appendChild(p2);
+
+    html.appendChild(body);
+    doc.appendChild(html);
+    doc.close();
+
+    printWindow.print();
+  };
+})();
+</script>
+`, activePage: 'security', channel: null }) %>
