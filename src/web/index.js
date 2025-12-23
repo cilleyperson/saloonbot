@@ -54,13 +54,12 @@ const authLimiter = rateLimit({
  * CSRF protection configuration using Double Submit Cookie pattern
  * csrf-csrf is the maintained replacement for the deprecated csurf package
  *
- * Note: __Host- prefix requires HTTPS and specific cookie attributes
- * We use it when HTTPS is enabled (either production or dev with HTTPS)
+ * Note: We use a simple cookie name to ensure compatibility with IP addresses
+ * and self-signed certificates in development. The __Host- prefix has strict
+ * requirements that may not work in all development scenarios.
  */
 const isSecure = config.isProduction || config.server.https.enabled;
-const csrfCookieName = isSecure
-  ? '__Host-saloonbot.x-csrf-token'
-  : 'saloonbot.x-csrf-token';
+const csrfCookieName = 'saloonbot.x-csrf-token';
 
 const {
   generateCsrfToken,
@@ -173,7 +172,14 @@ function createApp() {
   });
 
   // Make CSRF token available to templates
+  // Ensure session is initialized before generating CSRF token
+  // This is necessary because saveUninitialized:false means session won't exist
+  // until we explicitly touch it, which would cause CSRF validation to fail
   app.use((req, res, next) => {
+    // Touch the session to ensure it's saved (required for CSRF token consistency)
+    if (!req.session.initialized) {
+      req.session.initialized = true;
+    }
     res.locals.csrfToken = generateCsrfToken(req, res);
     next();
   });
