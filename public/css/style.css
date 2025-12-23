@@ -360,6 +360,8 @@ code {
   overflow-y: auto;
   transition: transform var(--transition-normal), background-color var(--transition-normal);
   z-index: 90;
+  /* Visible by default on large screens */
+  transform: translateX(0);
 }
 
 .sidebar-nav {
