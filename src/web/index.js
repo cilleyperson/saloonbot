@@ -23,6 +23,7 @@ const commandRoutes = require('./routes/commands');
 const counterRoutes = require('./routes/counters');
 const chatMembershipRoutes = require('./routes/chat-memberships');
 const predefinedCommandRoutes = require('./routes/predefined-commands');
+const twoFactorRoutes = require('./routes/two-factor');
 
 const logger = createChildLogger('web');
 
@@ -161,6 +162,9 @@ function createApp() {
   app.use('/channels', requireAuth, counterRoutes);
   app.use('/channels', requireAuth, chatMembershipRoutes);
   app.use('/channels', requireAuth, predefinedCommandRoutes);
+
+  // Account routes (2FA, security settings)
+  app.use('/account', requireAuth, twoFactorRoutes);
 
   // 404 handler
   app.use((req, res) => {

@@ -1,0 +1,67 @@
+<%- include('../layout', { body: `
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/account/2fa/cancel" class="back-link">&larr; Cancel Setup</a>
+      <h1 class="page-title">Set Up Two-Factor Authentication</h1>
+      <p class="page-subtitle">Step 1: Scan the QR code with your authenticator app</p>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">1. Scan QR Code</h3>
+      </div>
+      <div class="card-body">
+        <p class="mb-4 text-secondary">
+          Use an authenticator app like Google Authenticator, Authy, or 1Password to scan this QR code.
+        </p>
+
+        <div class="text-center mb-4">
+          <img src="${qrCodeDataUrl}" alt="2FA QR Code" style="max-width: 256px; border-radius: 8px; border: 1px solid var(--border-primary);">
+        </div>
+
+        <details class="mb-4">
+          <summary class="text-secondary" style="cursor: pointer;">Can't scan? Enter the code manually</summary>
+          <div class="mt-3" style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+            <p class="text-secondary mb-2"><strong>Account:</strong> ${issuer}</p>
+            <p class="text-secondary mb-2"><strong>Secret Key:</strong></p>
+            <code style="word-break: break-all; font-size: 0.9rem; user-select: all;">${secret}</code>
+            <p class="form-hint mt-2">Type: Time-based (TOTP), Digits: 6, Interval: 30 seconds</p>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">2. Verify Setup</h3>
+      </div>
+      <div class="card-body">
+        <p class="mb-4 text-secondary">
+          Enter the 6-digit code from your authenticator app to verify the setup.
+        </p>
+
+        <form action="/account/2fa/verify" method="POST">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+
+          <div class="form-group">
+            <label for="code" class="form-label">Verification Code</label>
+            <input type="text" id="code" name="code" class="form-input" required
+                   autocomplete="one-time-code" inputmode="numeric"
+                   pattern="[0-9]{6}" maxlength="6" placeholder="000000"
+                   style="max-width: 200px; font-size: 1.5rem; text-align: center; letter-spacing: 0.5em;">
+            <p class="form-hint">Enter the 6-digit code shown in your authenticator app</p>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Verify and Enable 2FA</button>
+            <a href="/account/2fa/cancel" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+`, activePage: 'security', channel: null }) %>

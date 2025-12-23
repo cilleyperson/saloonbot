@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "generate-certs": "bash scripts/generate-certs.sh",
     "create-admin": "node scripts/create-admin.js"
   },
@@ -25,7 +27,13 @@
     "express-rate-limit": "^7.1.5",
     "express-session": "^1.18.2",
     "helmet": "^8.1.0",
+    "otpauth": "^9.4.1",
+    "qrcode": "^1.5.4",
     "winston": "^3.19.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
+  }
 }

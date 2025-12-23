@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Two-Factor Authentication - Saloon Bot</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    // Apply theme immediately to prevent flash
+    (function() {
+      var theme = localStorage.getItem('saloonbot-theme');
+      if (!theme) {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>Saloon Bot</h1>
+        <p>Two-Factor Authentication</p>
+      </div>
+
+      <% if (flash && flash.error) { %>
+        <div class="alert alert-error"><%= flash.error %></div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-body">
+          <p class="text-secondary mb-4" style="text-align: center;">
+            Enter the 6-digit code from your authenticator app to continue signing in as <strong><%= username %></strong>.
+          </p>
+
+          <form method="POST" action="/auth/2fa" id="totp-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="useBackupCode" id="useBackupCode" value="">
+
+            <div class="form-group">
+              <label for="code" class="form-label">Authentication Code</label>
+              <input type="text" id="code" name="code" class="form-input"
+                     required autofocus autocomplete="one-time-code"
+                     inputmode="numeric" pattern="[0-9A-Za-z\-]{6,9}"
+                     maxlength="9" placeholder="000000"
+                     style="font-size: 1.5rem; text-align: center; letter-spacing: 0.3em;">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Verify</button>
+          </form>
+
+          <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-primary);">
+            <details>
+              <summary class="text-secondary" style="cursor: pointer; font-size: 0.9rem;">
+                Lost access to your authenticator app?
+              </summary>
+              <div style="margin-top: 1rem;">
+                <p class="text-secondary mb-3" style="font-size: 0.9rem;">
+                  Enter one of your backup codes instead. Each code can only be used once.
+                </p>
+                <button type="button" class="btn btn-secondary" style="width: 100%;" onclick="useBackupCodeMode()">
+                  Use Backup Code
+                </button>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-footer">
+        <p><a href="/auth/login" class="text-secondary">Cancel and return to login</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function useBackupCodeMode() {
+      document.getElementById('useBackupCode').value = '1';
+      var codeInput = document.getElementById('code');
+      codeInput.placeholder = 'XXXX-XXXX';
+      codeInput.pattern = '[0-9A-Za-z\\-]{8,9}';
+      codeInput.maxLength = 9;
+      codeInput.style.letterSpacing = '0.1em';
+      codeInput.value = '';
+      codeInput.focus();
+
+      var label = document.querySelector('label[for="code"]');
+      if (label) {
+        label.textContent = 'Backup Code';
+      }
+    }
+  </script>
+
+  <script src="/js/theme.js"></script>
+</body>
+</html>

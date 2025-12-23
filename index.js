@@ -36,8 +36,8 @@ async function main() {
     const app = createApp(botCore);
     const servers = await startServer(app);
     logger.info('Web server started', {
-      http: servers.http ? `http://localhost:${servers.http.address().port}` : null,
-      https: servers.https ? `https://localhost:${servers.https.address().port}` : null
+      http: servers.http ? `http://localhost:${servers.http.address()?.port || 'unknown'}` : null,
+      https: servers.https ? `https://localhost:${servers.https.address()?.port || 'unknown'}` : null
     });
 
     // Initialize bot

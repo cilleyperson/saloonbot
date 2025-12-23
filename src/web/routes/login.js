@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const adminUserRepo = require('../../database/repositories/admin-user-repo');
+const totp = require('../../utils/totp');
 const { createChildLogger } = require('../../utils/logger');
 
 const logger = createChildLogger('login-routes');
@@ -9,6 +10,9 @@ const logger = createChildLogger('login-routes');
 // Constants for account lockout
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+// 2FA pending session timeout (5 minutes)
+const TOTP_PENDING_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * GET /login - Render login form
@@ -120,42 +124,34 @@ router.post('/login', async (req, res) => {
       return res.redirect('/auth/login');
     }
 
-    // Successful login
-    logger.info('Successful login', {
+    // Password verified successfully
+    logger.info('Password verified', {
       userId: user.id,
       username: user.username
     });
 
-    // Reset failed attempts on successful login
+    // Reset failed attempts on successful password verification
     adminUserRepo.resetFailedAttempts(user.id);
 
-    // Update last login timestamp
-    adminUserRepo.updateLastLogin(user.id);
-
-    // Set session with adminUser object (expected by auth middleware)
-    req.session.adminUser = {
-      id: user.id,
-      username: user.username
-    };
-
-    // Regenerate session ID for security
-    req.session.regenerate((err) => {
-      if (err) {
-        logger.error('Failed to regenerate session after login', {
-          userId: user.id,
-          error: err.message
-        });
-        // Continue anyway - session is still valid
-      }
-
-      // Restore session data after regeneration
-      req.session.adminUser = {
-        id: user.id,
+    // Check if user has 2FA enabled
+    if (adminUserRepo.hasTotpEnabled(user)) {
+      logger.info('2FA required for login', {
+        userId: user.id,
         username: user.username
+      });
+
+      // Store pending 2FA state in session
+      req.session.pendingTwoFactor = {
+        userId: user.id,
+        username: user.username,
+        timestamp: Date.now()
       };
 
-      res.redirect('/');
-    });
+      return res.redirect('/auth/2fa');
+    }
+
+    // No 2FA - complete login
+    completeLogin(req, res, user);
 
   } catch (error) {
     logger.error('Login error', {
@@ -168,6 +164,194 @@ router.post('/login', async (req, res) => {
     res.redirect('/auth/login');
   }
 });
+
+/**
+ * Helper function to complete the login process
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Object} user - User object
+ */
+function completeLogin(req, res, user) {
+  logger.info('Successful login', {
+    userId: user.id,
+    username: user.username
+  });
+
+  // Update last login timestamp
+  adminUserRepo.updateLastLogin(user.id);
+
+  // Clear any pending 2FA state
+  delete req.session.pendingTwoFactor;
+
+  // Set session with adminUser object (expected by auth middleware)
+  req.session.adminUser = {
+    id: user.id,
+    username: user.username
+  };
+
+  // Regenerate session ID for security
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error('Failed to regenerate session after login', {
+        userId: user.id,
+        error: err.message
+      });
+      // Continue anyway - session is still valid
+    }
+
+    // Restore session data after regeneration
+    req.session.adminUser = {
+      id: user.id,
+      username: user.username
+    };
+
+    res.redirect('/');
+  });
+}
+
+/**
+ * GET /2fa - Render 2FA challenge form
+ */
+router.get('/2fa', (req, res) => {
+  const pending = req.session?.pendingTwoFactor;
+
+  // Check for pending 2FA session
+  if (!pending) {
+    logger.warn('2FA page accessed without pending session');
+    return res.redirect('/auth/login');
+  }
+
+  // Check if pending session has expired
+  if (Date.now() - pending.timestamp > TOTP_PENDING_TIMEOUT_MS) {
+    logger.warn('2FA pending session expired', { userId: pending.userId });
+    delete req.session.pendingTwoFactor;
+    req.session.flash = { error: 'Session expired. Please log in again.' };
+    return res.redirect('/auth/login');
+  }
+
+  res.render('2fa-challenge', {
+    csrfToken: req.csrfToken ? req.csrfToken() : '',
+    username: pending.username,
+    flash: {
+      error: req.session?.flash?.error || null
+    }
+  });
+
+  // Clear flash messages after rendering
+  if (req.session?.flash) {
+    delete req.session.flash;
+  }
+});
+
+/**
+ * POST /2fa - Verify 2FA code
+ */
+router.post('/2fa', async (req, res) => {
+  const { code, useBackupCode } = req.body;
+  const pending = req.session?.pendingTwoFactor;
+
+  // Check for pending 2FA session
+  if (!pending) {
+    logger.warn('2FA verification attempted without pending session');
+    return res.redirect('/auth/login');
+  }
+
+  // Check if pending session has expired
+  if (Date.now() - pending.timestamp > TOTP_PENDING_TIMEOUT_MS) {
+    logger.warn('2FA pending session expired during verification', { userId: pending.userId });
+    delete req.session.pendingTwoFactor;
+    req.session.flash = { error: 'Session expired. Please log in again.' };
+    return res.redirect('/auth/login');
+  }
+
+  // Get user
+  const user = adminUserRepo.findById(pending.userId);
+  if (!user) {
+    logger.error('User not found during 2FA verification', { userId: pending.userId });
+    delete req.session.pendingTwoFactor;
+    req.session.flash = { error: 'An error occurred. Please log in again.' };
+    return res.redirect('/auth/login');
+  }
+
+  // Validate code input
+  if (!code) {
+    req.session.flash = { error: 'Please enter an authentication code' };
+    return res.redirect('/auth/2fa');
+  }
+
+  let isValid = false;
+
+  if (useBackupCode) {
+    // Verify backup code
+    isValid = await verifyBackupCode(user, code);
+    if (isValid) {
+      logger.info('2FA verified using backup code', {
+        userId: user.id,
+        username: user.username
+      });
+    }
+  } else {
+    // Verify TOTP code
+    const secret = adminUserRepo.getTotpSecret(user.id);
+    if (secret) {
+      isValid = totp.verifyCode(secret, code, user.username);
+    }
+    if (isValid) {
+      logger.info('2FA verified using TOTP', {
+        userId: user.id,
+        username: user.username
+      });
+    }
+  }
+
+  if (!isValid) {
+    logger.warn('Invalid 2FA code', {
+      userId: user.id,
+      username: user.username,
+      useBackupCode: !!useBackupCode
+    });
+    req.session.flash = { error: 'Invalid authentication code. Please try again.' };
+    return res.redirect('/auth/2fa');
+  }
+
+  // 2FA verified - complete login
+  completeLogin(req, res, user);
+});
+
+/**
+ * Verify a backup code and remove it if valid
+ * @param {Object} user - User object
+ * @param {string} code - Backup code to verify
+ * @returns {Promise<boolean>} True if valid
+ */
+async function verifyBackupCode(user, code) {
+  const hashedCodes = adminUserRepo.getBackupCodes(user.id);
+
+  if (!hashedCodes || hashedCodes.length === 0) {
+    return false;
+  }
+
+  const normalizedCode = totp.normalizeBackupCode(code);
+
+  // Check each hashed code
+  for (let i = 0; i < hashedCodes.length; i++) {
+    const match = await bcrypt.compare(normalizedCode, hashedCodes[i]);
+    if (match) {
+      // Remove the used code
+      const remainingCodes = hashedCodes.filter((_, index) => index !== i);
+      adminUserRepo.updateBackupCodes(user.id, remainingCodes);
+
+      logger.info('Backup code used', {
+        userId: user.id,
+        remainingCodes: remainingCodes.length
+      });
+
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /**
  * POST /logout - Clear session and redirect to login
