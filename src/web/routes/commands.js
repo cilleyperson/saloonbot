@@ -13,24 +13,32 @@ const logger = createChildLogger('command-routes');
 
 // Configure multer for file uploads (temporary storage)
 const uploadDir = path.join(__dirname, '../../../data/uploads');
-const uploadRoot = path.resolve(uploadDir);
+const uploadRoot = fs.realpathSync(path.resolve(uploadDir));
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 /**
  * Validate that a file path is within the upload directory
- * Prevents path traversal attacks
+ * Prevents path traversal attacks, including via symlinks
  * @param {string} filePath - The file path to validate
  * @returns {string|null} The safe resolved path, or null if invalid
  */
 function validateUploadPath(filePath) {
-  // Resolve the provided path against the upload root to prevent path traversal
-  const resolvedPath = path.resolve(uploadRoot, filePath);
-  if (!resolvedPath.startsWith(uploadRoot + path.sep) && resolvedPath !== uploadRoot) {
+  try {
+    // Resolve the provided path against the upload root to prevent path traversal
+    const resolvedPath = path.resolve(uploadRoot, filePath);
+    // Resolve symlinks and get the canonical path
+    const realResolvedPath = fs.realpathSync(resolvedPath);
+    // Ensure the real path is within the real upload root
+    if (!realResolvedPath.startsWith(uploadRoot + path.sep) && realResolvedPath !== uploadRoot) {
+      return null;
+    }
+    return realResolvedPath;
+  } catch (e) {
+    // If the path does not exist or cannot be resolved, treat it as invalid
     return null;
   }
-  return resolvedPath;
 }
 
 const upload = multer({
