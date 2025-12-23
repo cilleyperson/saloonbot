@@ -54,9 +54,11 @@ const authLimiter = rateLimit({
  * CSRF protection configuration using Double Submit Cookie pattern
  * csrf-csrf is the maintained replacement for the deprecated csurf package
  *
- * Note: __Host- prefix requires HTTPS, so we use it only in production
+ * Note: __Host- prefix requires HTTPS and specific cookie attributes
+ * We use it when HTTPS is enabled (either production or dev with HTTPS)
  */
-const csrfCookieName = config.isProduction
+const isSecure = config.isProduction || config.server.https.enabled;
+const csrfCookieName = isSecure
   ? '__Host-saloonbot.x-csrf-token'
   : 'saloonbot.x-csrf-token';
 
@@ -70,7 +72,7 @@ const {
   cookieOptions: {
     sameSite: 'lax', // 'lax' allows cookies on OAuth redirects
     path: '/',
-    secure: config.isProduction,
+    secure: isSecure,
     httpOnly: true
   },
   size: 64,
@@ -116,12 +118,13 @@ function createApp() {
   app.use(cookieParser());
 
   // Session configuration
+  // Note: isSecure is defined at module level to handle HTTPS in both production and development
   app.use(session({
     secret: config.server.sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: config.isProduction,
+      secure: isSecure,
       httpOnly: true,
       sameSite: 'lax', // 'lax' allows cookies on OAuth redirects (top-level navigation)
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
