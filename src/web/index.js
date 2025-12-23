@@ -2,13 +2,12 @@ const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const { doubleCsrf } = require('csrf-csrf');
+const csrf = require('@dr.pogodin/csurf');
 const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
-const crypto = require('crypto');
 const config = require('../config');
 const { createChildLogger } = require('../utils/logger');
 
@@ -51,38 +50,11 @@ const authLimiter = rateLimit({
 });
 
 /**
- * CSRF protection configuration using Double Submit Cookie pattern
- * csrf-csrf is the maintained replacement for the deprecated csurf package
- *
- * Note: We use a simple cookie name to ensure compatibility with IP addresses
- * and self-signed certificates in development. The __Host- prefix has strict
- * requirements that may not work in all development scenarios.
+ * CSRF protection configuration
+ * Using @dr.pogodin/csurf - a maintained fork of the original csurf package
  */
 const isSecure = config.isProduction || config.server.https.enabled;
-const csrfCookieName = 'saloonbot.x-csrf-token';
-
-const {
-  generateCsrfToken,
-  doubleCsrfProtection
-} = doubleCsrf({
-  getSecret: () => config.server.sessionSecret,
-  // Use a fixed identifier since session ID may not be consistent between
-  // GET and POST when using secure cookies over HTTPS with IP addresses.
-  // The Double Submit Cookie pattern still provides CSRF protection without
-  // per-session binding - an attacker cannot read the httpOnly cookie to
-  // include it in a forged request.
-  getSessionIdentifier: () => 'saloonbot-csrf',
-  cookieName: csrfCookieName,
-  cookieOptions: {
-    sameSite: 'lax', // 'lax' allows cookies on OAuth redirects
-    path: '/',
-    secure: isSecure,
-    httpOnly: true
-  },
-  size: 64,
-  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-  getTokenFromRequest: (req) => req.body?._csrf || req.headers['x-csrf-token']
-});
+const csrfProtection = csrf({ cookie: true });
 
 /**
  * Create and configure the Express application
@@ -144,20 +116,8 @@ function createApp() {
   // Global rate limiting
   app.use(globalLimiter);
 
-  // Initialize session before CSRF validation
-  // This is critical: with saveUninitialized:false, the session won't be saved
-  // until we modify it. CSRF validation uses session ID, so we must ensure
-  // the session exists and is consistent between GET (token generation) and
-  // POST (token validation) requests.
-  app.use((req, res, next) => {
-    if (!req.session.initialized) {
-      req.session.initialized = true;
-    }
-    next();
-  });
-
   // CSRF protection (must come after cookie-parser and session)
-  app.use(doubleCsrfProtection);
+  app.use(csrfProtection);
 
   // Flash message middleware
   app.use((req, res, next) => {
@@ -190,7 +150,7 @@ function createApp() {
 
   // Make CSRF token available to templates
   app.use((req, res, next) => {
-    res.locals.csrfToken = generateCsrfToken(req, res);
+    res.locals.csrfToken = req.csrfToken();
     next();
   });
 
