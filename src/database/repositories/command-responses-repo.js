@@ -63,6 +63,42 @@ function create(commandId, responseText, options = {}) {
 }
 
 /**
+ * Create multiple responses for a command in a single transaction
+ * @param {number} commandId - Command ID
+ * @param {string[]} responsesText - Array of response texts
+ * @param {Object} options - Additional options
+ * @returns {number} Number of responses created
+ */
+function createBulk(commandId, responsesText, options = {}) {
+  const db = getDb();
+
+  const {
+    weight = 1,
+    isEnabled = true
+  } = options;
+
+  const insertStmt = db.prepare(`
+    INSERT INTO command_responses (command_id, response_text, weight, is_enabled)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const insertMany = db.transaction((responses) => {
+    let count = 0;
+    for (const responseText of responses) {
+      if (responseText && responseText.trim().length > 0) {
+        insertStmt.run(commandId, responseText.trim(), weight, isEnabled ? 1 : 0);
+        count++;
+      }
+    }
+    return count;
+  });
+
+  const insertedCount = insertMany(responsesText);
+  logger.info(`Bulk created ${insertedCount} responses for command ${commandId}`);
+  return insertedCount;
+}
+
+/**
  * Update a response
  * @param {number} id - Response ID
  * @param {Object} data - Data to update
@@ -221,6 +257,7 @@ module.exports = {
   findByCommand,
   findById,
   create,
+  createBulk,
   update,
   toggleEnabled,
   remove,

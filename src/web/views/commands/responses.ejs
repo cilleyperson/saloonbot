@@ -51,6 +51,26 @@
       </div>
     </div>
 
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Import Responses from File</h3>
+      </div>
+      <div class="card-body">
+        <form action="/channels/${channel.id}/commands/${command.id}/responses/import" method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+          <div class="form-group">
+            <label for="responses_file" class="form-label">Select Text File</label>
+            <input type="file" name="responses_file" id="responses_file" accept=".txt" class="form-input" required>
+            <p class="form-hint">
+              Upload a .txt file with one response per line. Each response will be added with weight 1.
+              Maximum file size: 1MB.
+            </p>
+          </div>
+          <button type="submit" class="btn btn-secondary">Import Responses</button>
+        </form>
+      </div>
+    </div>
+
     ${responses.length > 0 ? `
     <div class="card">
       <div class="card-header">
