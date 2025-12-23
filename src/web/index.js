@@ -2,12 +2,13 @@ const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const csrf = require('csurf');
+const { doubleCsrf } = require('csrf-csrf');
 const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
+const crypto = require('crypto');
 const config = require('../config');
 const { createChildLogger } = require('../utils/logger');
 
@@ -50,9 +51,32 @@ const authLimiter = rateLimit({
 });
 
 /**
- * CSRF protection configuration
+ * CSRF protection configuration using Double Submit Cookie pattern
+ * csrf-csrf is the maintained replacement for the deprecated csurf package
+ *
+ * Note: __Host- prefix requires HTTPS, so we use it only in production
  */
-const csrfProtection = csrf({ cookie: true });
+const csrfCookieName = config.isProduction
+  ? '__Host-saloonbot.x-csrf-token'
+  : 'saloonbot.x-csrf-token';
+
+const {
+  generateCsrfToken,
+  doubleCsrfProtection
+} = doubleCsrf({
+  getSecret: () => config.server.sessionSecret,
+  getSessionIdentifier: (req) => req.session?.id || req.sessionID || 'anonymous',
+  cookieName: csrfCookieName,
+  cookieOptions: {
+    sameSite: 'lax', // 'lax' allows cookies on OAuth redirects
+    path: '/',
+    secure: config.isProduction,
+    httpOnly: true
+  },
+  size: 64,
+  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+  getTokenFromRequest: (req) => req.body._csrf || req.headers['x-csrf-token']
+});
 
 /**
  * Create and configure the Express application
@@ -114,7 +138,7 @@ function createApp() {
   app.use(globalLimiter);
 
   // CSRF protection (must come after cookie-parser and session)
-  app.use(csrfProtection);
+  app.use(doubleCsrfProtection);
 
   // Flash message middleware
   app.use((req, res, next) => {
@@ -147,7 +171,7 @@ function createApp() {
 
   // Make CSRF token available to templates
   app.use((req, res, next) => {
-    res.locals.csrfToken = req.csrfToken();
+    res.locals.csrfToken = generateCsrfToken(req, res);
     next();
   });
 
