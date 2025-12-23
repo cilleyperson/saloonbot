@@ -28,8 +28,8 @@ router.get('/login', (req, res) => {
   }
 
   // Render login page with flash messages
+  // Note: csrfToken is already set in res.locals by the CSRF middleware
   res.render('login', {
-    csrfToken: req.csrfToken ? req.csrfToken() : '',
     flash: {
       error: req.session?.flash?.error || null
     }
@@ -229,8 +229,8 @@ router.get('/2fa', (req, res) => {
     return res.redirect('/auth/login');
   }
 
+  // Note: csrfToken is already set in res.locals by the CSRF middleware
   res.render('2fa-challenge', {
-    csrfToken: req.csrfToken ? req.csrfToken() : '',
     username: pending.username,
     flash: {
       error: req.session?.flash?.error || null
