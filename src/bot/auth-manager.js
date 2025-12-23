@@ -212,8 +212,6 @@ class AuthManager {
 
     // Also add the channel's token to the bot's auth provider for EventSub
     // EventSub subscriptions require the broadcaster's token to be accessible
-    // Note: We don't specify 'chat' intent because channel tokens don't have chat scopes
-    // The bot's own token is used for chat operations
     if (this.botAuthProvider && twitchId) {
       try {
         this.botAuthProvider.addUser(twitchId, {
@@ -222,7 +220,7 @@ class AuthManager {
           scope: Array.isArray(scopes) ? scopes : scopes.split(' '),
           expiresIn: 0,
           obtainmentTimestamp: Date.now()
-        }); // No intents specified - token used only for API calls (EventSub)
+        }, ['chat']);
 
         logger.debug(`Added channel ${channelId} token to bot auth provider for EventSub (twitchId: ${twitchId})`);
       } catch (error) {
