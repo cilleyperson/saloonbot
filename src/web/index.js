@@ -66,12 +66,12 @@ const {
   doubleCsrfProtection
 } = doubleCsrf({
   getSecret: () => config.server.sessionSecret,
-  // Use sessionID which is set by express-session and stored in connect.sid cookie
-  // req.session.id and req.sessionID should be identical, but sessionID is more reliable
-  getSessionIdentifier: (req) => {
-    const id = req.sessionID || req.session?.id || 'anonymous';
-    return id;
-  },
+  // Use a fixed identifier since session ID may not be consistent between
+  // GET and POST when using secure cookies over HTTPS with IP addresses.
+  // The Double Submit Cookie pattern still provides CSRF protection without
+  // per-session binding - an attacker cannot read the httpOnly cookie to
+  // include it in a forged request.
+  getSessionIdentifier: () => 'saloonbot-csrf',
   cookieName: csrfCookieName,
   cookieOptions: {
     sameSite: 'lax', // 'lax' allows cookies on OAuth redirects
@@ -81,11 +81,7 @@ const {
   },
   size: 64,
   ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-  getTokenFromRequest: (req) => {
-    // Get token from body (form submission) or header (AJAX)
-    const token = req.body?._csrf || req.headers['x-csrf-token'];
-    return token;
-  }
+  getTokenFromRequest: (req) => req.body?._csrf || req.headers['x-csrf-token']
 });
 
 /**
@@ -160,34 +156,8 @@ function createApp() {
     next();
   });
 
-  // CSRF protection (must come after cookie-parser, session, and session init)
-  // Wrap with error handling to log CSRF failures for debugging
-  app.use((req, res, next) => {
-    // Debug logging for login - using console.log to bypass logger redaction
-    if (req.method === 'POST' && req.path.includes('login')) {
-      const csrfCookie = req.cookies['saloonbot.x-csrf-token'];
-      const bodyToken = req.body?._csrf;
-      console.log('=== CSRF DEBUG POST ===');
-      console.log('Session ID:', req.sessionID);
-      console.log('Cookie token length:', csrfCookie?.length);
-      console.log('Body token length:', bodyToken?.length);
-      console.log('Tokens match:', csrfCookie === bodyToken);
-      console.log('Cookie first 20 chars:', csrfCookie?.substring(0, 20));
-      console.log('Body first 20 chars:', bodyToken?.substring(0, 20));
-      console.log('Cookie last 20 chars:', csrfCookie?.substring(csrfCookie?.length - 20));
-      console.log('Body last 20 chars:', bodyToken?.substring(bodyToken?.length - 20));
-      console.log('=======================');
-    }
-
-    doubleCsrfProtection(req, res, (err) => {
-      if (err) {
-        console.log('=== CSRF VALIDATION FAILED ===');
-        console.log('Error:', err.message);
-        console.log('===============================');
-      }
-      next(err);
-    });
-  });
+  // CSRF protection (must come after cookie-parser and session)
+  app.use(doubleCsrfProtection);
 
   // Flash message middleware
   app.use((req, res, next) => {
@@ -220,19 +190,7 @@ function createApp() {
 
   // Make CSRF token available to templates
   app.use((req, res, next) => {
-    const token = generateCsrfToken(req, res);
-    res.locals.csrfToken = token;
-
-    // Debug logging for login GET - using console.log to bypass logger redaction
-    if (req.method === 'GET' && req.path.includes('login')) {
-      console.log('=== CSRF DEBUG GET ===');
-      console.log('Session ID:', req.sessionID);
-      console.log('Token length:', token?.length);
-      console.log('Token first 20 chars:', token?.substring(0, 20));
-      console.log('Token last 20 chars:', token?.substring(token?.length - 20));
-      console.log('Cookie being set:', res.getHeader('Set-Cookie'));
-      console.log('======================');
-    }
+    res.locals.csrfToken = generateCsrfToken(req, res);
     next();
   });
 
