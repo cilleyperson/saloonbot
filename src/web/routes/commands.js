@@ -25,7 +25,8 @@ if (!fs.existsSync(uploadDir)) {
  * @returns {string|null} The safe resolved path, or null if invalid
  */
 function validateUploadPath(filePath) {
-  const resolvedPath = path.resolve(filePath);
+  // Resolve the provided path against the upload root to prevent path traversal
+  const resolvedPath = path.resolve(uploadRoot, filePath);
   if (!resolvedPath.startsWith(uploadRoot + path.sep) && resolvedPath !== uploadRoot) {
     return null;
   }
