@@ -1,0 +1,99 @@
+<%- include('../layout', { body: `
+<div class="page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    return `
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/channels/${channel.id}/predefined" class="back-link">&larr; Back to Predefined Commands</a>
+      <h1 class="page-title">Trivia Leaderboard</h1>
+      <p class="page-subtitle">${displayName}</p>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="stats-row mb-6">
+      <div class="stat-card">
+        <span class="stat-value">${totalGames}</span>
+        <span class="stat-label">Total Questions</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${playerCount}</span>
+        <span class="stat-label">Players</span>
+      </div>
+    </div>
+
+    ${leaderboard.length > 0 ? `
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Correct</th>
+              <th>Incorrect</th>
+              <th>Accuracy</th>
+              <th>Current Streak</th>
+              <th>Best Streak</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leaderboard.map((stats, i) => {
+              const username = escapeHtml(stats.username);
+              const rank = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : (i + 1) + 'th';
+              return `
+            <tr>
+              <td>
+                <span class="badge ${i === 0 ? 'badge-warning' : i === 1 ? 'badge-secondary' : i === 2 ? 'badge-info' : ''}">${rank}</span>
+              </td>
+              <td><strong>${username}</strong></td>
+              <td class="text-success">${stats.correct_answers}</td>
+              <td class="text-error">${stats.incorrect_answers}</td>
+              <td>${stats.accuracy}%</td>
+              <td>${stats.current_streak > 0 ? stats.current_streak + ' 🔥' : '0'}</td>
+              <td>${stats.best_streak}</td>
+              <td>
+                <form action="/channels/${channel.id}/predefined/trivia/stats/${stats.user_id}/reset" method="POST" class="inline-form">
+                  <input type="hidden" name="_csrf" value="${csrfToken}">
+                  <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reset this user\\'s stats?')">Reset</button>
+                </form>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <h3>No trivia games played yet</h3>
+          <p>Users can play by typing <code>!trivia</code> in chat and answering with A, B, C, or D.</p>
+        </div>
+      </div>
+    </div>
+    `}
+  </div>
+    `;
+  })()}
+</div>
+`, activePage: 'predefined', channel: channel }) %>

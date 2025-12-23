@@ -5,6 +5,7 @@ const predefinedSettingsRepo = require('../../database/repositories/predefined-s
 const magic8ballRepo = require('../../database/repositories/magic-8ball-repo');
 const dictionaryRepo = require('../../database/repositories/dictionary-repo');
 const rpsStatsRepo = require('../../database/repositories/rps-stats-repo');
+const triviaStatsRepo = require('../../database/repositories/trivia-stats-repo');
 const chatMembershipRepo = require('../../database/repositories/chat-membership-repo');
 const { createChildLogger } = require('../../utils/logger');
 
@@ -398,6 +399,56 @@ router.post('/:id/predefined/rps/stats/:userId/reset', (req, res) => {
   }
 
   res.redirect(`/channels/${channelId}/predefined/rps/stats`);
+});
+
+// ================== TRIVIA STATS ==================
+
+/**
+ * View Trivia leaderboard
+ */
+router.get('/:id/predefined/trivia/stats', (req, res) => {
+  const channelId = parseInt(req.params.id, 10);
+  const channel = channelRepo.findById(channelId);
+
+  if (!channel) {
+    req.flash('error', 'Channel not found');
+    return res.redirect('/channels');
+  }
+
+  const leaderboard = triviaStatsRepo.getLeaderboard(channelId, 20);
+  const totalGames = triviaStatsRepo.getTotalGames(channelId);
+  const playerCount = triviaStatsRepo.getPlayerCount(channelId);
+
+  // Add accuracy percentage to each entry
+  const leaderboardWithPct = leaderboard.map(stats => ({
+    ...stats,
+    accuracy: triviaStatsRepo.calculateAccuracy(stats)
+  }));
+
+  res.render('predefined-commands/trivia', {
+    title: `Trivia Leaderboard - ${channel.display_name || channel.twitch_username}`,
+    channel,
+    leaderboard: leaderboardWithPct,
+    totalGames,
+    playerCount
+  });
+});
+
+/**
+ * Reset user Trivia stats
+ */
+router.post('/:id/predefined/trivia/stats/:userId/reset', (req, res) => {
+  const channelId = parseInt(req.params.id, 10);
+  const userId = req.params.userId;
+
+  try {
+    triviaStatsRepo.resetStats(channelId, userId);
+    req.flash('success', 'User stats reset');
+  } catch (err) {
+    req.flash('error', `Failed to reset stats: ${err.message}`);
+  }
+
+  res.redirect(`/channels/${channelId}/predefined/trivia/stats`);
 });
 
 module.exports = router;
