@@ -1,7 +1,6 @@
 const channelRepo = require('../database/repositories/channel-repo');
 const settingsRepo = require('../database/repositories/settings-repo');
 const chatMembershipRepo = require('../database/repositories/chat-membership-repo');
-const authRepo = require('../database/repositories/auth-repo');
 const { createChildLogger } = require('../utils/logger');
 
 const logger = createChildLogger('channel-manager');
@@ -279,14 +278,6 @@ class ChannelManager {
 
     if (!this.eventSubListener || !this.eventHandler) {
       logger.warn('EventSub listener or handler not available');
-      return subscriptions;
-    }
-
-    // Check if channel has OAuth authentication
-    // EventSub subscriptions require the channel owner's token
-    const channelAuth = authRepo.getChannelAuth(channel.id);
-    if (!channelAuth) {
-      logger.warn(`Channel ${channel.twitch_username} is not authenticated. EventSub subscriptions require the channel owner to connect their Twitch account.`);
       return subscriptions;
     }
 
