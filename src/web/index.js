@@ -66,7 +66,12 @@ const {
   doubleCsrfProtection
 } = doubleCsrf({
   getSecret: () => config.server.sessionSecret,
-  getSessionIdentifier: (req) => req.session?.id || req.sessionID || 'anonymous',
+  // Use sessionID which is set by express-session and stored in connect.sid cookie
+  // req.session.id and req.sessionID should be identical, but sessionID is more reliable
+  getSessionIdentifier: (req) => {
+    const id = req.sessionID || req.session?.id || 'anonymous';
+    return id;
+  },
   cookieName: csrfCookieName,
   cookieOptions: {
     sameSite: 'lax', // 'lax' allows cookies on OAuth redirects
@@ -76,7 +81,11 @@ const {
   },
   size: 64,
   ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-  getTokenFromRequest: (req) => req.body._csrf || req.headers['x-csrf-token']
+  getTokenFromRequest: (req) => {
+    // Get token from body (form submission) or header (AJAX)
+    const token = req.body?._csrf || req.headers['x-csrf-token'];
+    return token;
+  }
 });
 
 /**
@@ -154,6 +163,23 @@ function createApp() {
   // CSRF protection (must come after cookie-parser, session, and session init)
   // Wrap with error handling to log CSRF failures for debugging
   app.use((req, res, next) => {
+    // Log session state before CSRF validation for debugging
+    if (req.method === 'POST' && req.path.includes('login')) {
+      const csrfCookie = req.cookies['saloonbot.x-csrf-token'];
+      const bodyToken = req.body?._csrf;
+      logger.info('CSRF validation debug', {
+        method: req.method,
+        path: req.path,
+        sessionID: req.sessionID,
+        sessionId: req.session?.id,
+        cookieTokenLength: csrfCookie?.length,
+        bodyTokenLength: bodyToken?.length,
+        tokensMatch: csrfCookie === bodyToken,
+        cookieTokenFirst10: csrfCookie?.substring(0, 10),
+        bodyTokenFirst10: bodyToken?.substring(0, 10)
+      });
+    }
+
     doubleCsrfProtection(req, res, (err) => {
       if (err) {
         logger.error('CSRF validation failed', {
@@ -203,7 +229,19 @@ function createApp() {
 
   // Make CSRF token available to templates
   app.use((req, res, next) => {
-    res.locals.csrfToken = generateCsrfToken(req, res);
+    const token = generateCsrfToken(req, res);
+    res.locals.csrfToken = token;
+
+    // Log token generation for login page debugging
+    if (req.method === 'GET' && req.path.includes('login')) {
+      logger.info('CSRF token generated', {
+        method: req.method,
+        path: req.path,
+        sessionID: req.sessionID,
+        tokenLength: token?.length,
+        tokenFirst10: token?.substring(0, 10)
+      });
+    }
     next();
   });
 
