@@ -13,8 +13,23 @@ const logger = createChildLogger('command-routes');
 
 // Configure multer for file uploads (temporary storage)
 const uploadDir = path.join(__dirname, '../../../data/uploads');
+const uploadRoot = path.resolve(uploadDir);
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+/**
+ * Validate that a file path is within the upload directory
+ * Prevents path traversal attacks
+ * @param {string} filePath - The file path to validate
+ * @returns {string|null} The safe resolved path, or null if invalid
+ */
+function validateUploadPath(filePath) {
+  const resolvedPath = path.resolve(filePath);
+  if (!resolvedPath.startsWith(uploadRoot + path.sep) && resolvedPath !== uploadRoot) {
+    return null;
+  }
+  return resolvedPath;
 }
 
 const upload = multer({
@@ -520,11 +535,20 @@ router.post('/:id/commands/:cmdId/responses/import', upload.single('responses_fi
     return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
   }
 
-  const filePath = req.file.path;
+  // Validate that the file path is within the upload directory (prevent path traversal)
+  const safeFilePath = validateUploadPath(req.file.path);
+  if (!safeFilePath) {
+    logger.warn('Path traversal attempt detected in file upload', {
+      providedPath: req.file.path,
+      uploadRoot
+    });
+    req.flash('error', 'Invalid file path');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
 
   try {
-    // Read and parse the file
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    // Read and parse the file using validated path
+    const fileContent = fs.readFileSync(safeFilePath, 'utf-8');
     const lines = fileContent.split(/\r?\n/);
 
     // Filter out empty lines
@@ -546,15 +570,15 @@ router.post('/:id/commands/:cmdId/responses/import', upload.single('responses_fi
 
     req.flash('success', `Successfully imported ${insertedCount} responses`);
   } catch (err) {
-    logger.error('Failed to import responses', { error: err.message, filePath });
+    logger.error('Failed to import responses', { error: err.message, safeFilePath });
     req.flash('error', `Failed to import responses: ${err.message}`);
   } finally {
-    // Always delete the uploaded file
+    // Always delete the uploaded file using validated path
     try {
-      fs.unlinkSync(filePath);
-      logger.debug(`Deleted temporary upload file: ${filePath}`);
+      fs.unlinkSync(safeFilePath);
+      logger.debug(`Deleted temporary upload file: ${safeFilePath}`);
     } catch (unlinkErr) {
-      logger.warn(`Failed to delete temporary file: ${filePath}`, { error: unlinkErr.message });
+      logger.warn(`Failed to delete temporary file: ${safeFilePath}`, { error: unlinkErr.message });
     }
   }
 
