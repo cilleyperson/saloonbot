@@ -27,6 +27,7 @@
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.2",
     "helmet": "^8.1.0",
+    "multer": "^2.0.2",
     "otpauth": "^9.4.1",
     "qrcode": "^1.5.4",
     "winston": "^3.19.0"

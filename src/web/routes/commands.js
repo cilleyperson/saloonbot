@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 const channelRepo = require('../../database/repositories/channel-repo');
 const commandRepo = require('../../database/repositories/command-repo');
 const commandResponsesRepo = require('../../database/repositories/command-responses-repo');
@@ -7,6 +10,51 @@ const chatMembershipRepo = require('../../database/repositories/chat-membership-
 const { createChildLogger } = require('../../utils/logger');
 
 const logger = createChildLogger('command-routes');
+
+// Configure multer for file uploads (temporary storage)
+const uploadDir = path.join(__dirname, '../../../data/uploads');
+const uploadRoot = fs.realpathSync(path.resolve(uploadDir));
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+/**
+ * Validate that a file path is within the upload directory
+ * Prevents path traversal attacks, including via symlinks
+ * @param {string} filePath - The file path to validate
+ * @returns {string|null} The safe resolved path, or null if invalid
+ */
+function validateUploadPath(filePath) {
+  try {
+    // Resolve the provided path against the upload root to prevent path traversal
+    const resolvedPath = path.resolve(uploadRoot, filePath);
+    // Resolve symlinks and get the canonical path
+    const realResolvedPath = fs.realpathSync(resolvedPath);
+    // Ensure the real path is within the real upload root
+    if (!realResolvedPath.startsWith(uploadRoot + path.sep) && realResolvedPath !== uploadRoot) {
+      return null;
+    }
+    return realResolvedPath;
+  } catch (e) {
+    // If the path does not exist or cannot be resolved, treat it as invalid
+    return null;
+  }
+}
+
+const upload = multer({
+  dest: uploadDir,
+  limits: {
+    fileSize: 1024 * 1024 // 1MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    // Only accept text files
+    if (file.mimetype === 'text/plain' || file.originalname.endsWith('.txt')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .txt files are allowed'), false);
+    }
+  }
+});
 
 /**
  * List commands for a channel
@@ -463,6 +511,112 @@ router.post('/:id/commands/:cmdId/responses/:respId/delete', (req, res) => {
   }
 
   res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+});
+
+/**
+ * Import responses from a text file
+ * Each line in the file becomes a separate response with weight=1
+ */
+router.post('/:id/commands/:cmdId/responses/import', upload.single('responses_file'), (req, res) => {
+  const channelId = parseInt(req.params.id, 10);
+  const cmdId = parseInt(req.params.cmdId, 10);
+
+  const channel = channelRepo.findById(channelId);
+  if (!channel) {
+    req.flash('error', 'Channel not found');
+    return res.redirect('/channels');
+  }
+
+  const command = commandRepo.findById(cmdId);
+  if (!command || command.channel_id !== channelId) {
+    req.flash('error', 'Command not found');
+    return res.redirect(`/channels/${channelId}/commands`);
+  }
+
+  // Check if command is in random mode
+  if (command.response_mode !== 'random') {
+    req.flash('error', 'Import is only available for commands with random response mode');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  if (!req.file) {
+    req.flash('error', 'Please select a file to upload');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  // Validate that the file path is within the upload directory (prevent path traversal)
+  const safeFilePath = validateUploadPath(req.file.path);
+  if (!safeFilePath) {
+    logger.warn('Path traversal attempt detected in file upload', {
+      providedPath: req.file.path,
+      uploadRoot
+    });
+    req.flash('error', 'Invalid file path');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  try {
+    // Read and parse the file using validated path
+    const fileContent = fs.readFileSync(safeFilePath, 'utf-8');
+    const lines = fileContent.split(/\r?\n/);
+
+    // Filter out empty lines
+    const responses = lines.filter(line => line.trim().length > 0);
+
+    if (responses.length === 0) {
+      req.flash('error', 'The file contains no valid responses');
+      return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+    }
+
+    // Bulk insert responses with weight=1
+    const insertedCount = commandResponsesRepo.createBulk(cmdId, responses, { weight: 1 });
+
+    logger.info(`Imported ${insertedCount} responses for !${command.command_name} from file`, {
+      channelId,
+      commandId: cmdId,
+      fileName: req.file.originalname
+    });
+
+    req.flash('success', `Successfully imported ${insertedCount} responses`);
+  } catch (err) {
+    logger.error('Failed to import responses', { error: err.message, safeFilePath });
+    req.flash('error', `Failed to import responses: ${err.message}`);
+  } finally {
+    // Always delete the uploaded file using validated path
+    try {
+      fs.unlinkSync(safeFilePath);
+      logger.debug(`Deleted temporary upload file: ${safeFilePath}`);
+    } catch (unlinkErr) {
+      logger.warn(`Failed to delete temporary file: ${safeFilePath}`, { error: unlinkErr.message });
+    }
+  }
+
+  res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+});
+
+// Handle multer errors
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      req.flash('error', 'File size exceeds 1MB limit');
+    } else {
+      req.flash('error', `Upload error: ${err.message}`);
+    }
+    // Try to redirect back to responses page
+    const channelId = req.params.id;
+    const cmdId = req.params.cmdId;
+    if (channelId && cmdId) {
+      return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+    }
+  } else if (err.message === 'Only .txt files are allowed') {
+    req.flash('error', err.message);
+    const channelId = req.params.id;
+    const cmdId = req.params.cmdId;
+    if (channelId && cmdId) {
+      return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+    }
+  }
+  next(err);
 });
 
 module.exports = router;

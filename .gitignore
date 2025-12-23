@@ -12,6 +12,9 @@
 *.db-wal
 *.db-shm
 
+# Data directory (uploads, etc.)
+data/uploads/
+
 # Logs
 logs/
 *.log
