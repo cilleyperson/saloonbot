@@ -40,8 +40,10 @@ function setLocals(req, res, next) {
   // Set authentication status
   res.locals.isAuthenticated = !!(req.session && req.session.adminUser);
 
-  // Set admin user info if authenticated
-  res.locals.adminUser = req.session && req.session.adminUser ? req.session.adminUser : null;
+  // Set admin user info if authenticated (available as both 'adminUser' and 'user' for templates)
+  var adminUser = req.session && req.session.adminUser ? req.session.adminUser : null;
+  res.locals.adminUser = adminUser;
+  res.locals.user = adminUser;
 
   next();
 }
