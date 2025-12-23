@@ -139,8 +139,38 @@ function createApp() {
   // Global rate limiting
   app.use(globalLimiter);
 
-  // CSRF protection (must come after cookie-parser and session)
-  app.use(doubleCsrfProtection);
+  // Initialize session before CSRF validation
+  // This is critical: with saveUninitialized:false, the session won't be saved
+  // until we modify it. CSRF validation uses session ID, so we must ensure
+  // the session exists and is consistent between GET (token generation) and
+  // POST (token validation) requests.
+  app.use((req, res, next) => {
+    if (!req.session.initialized) {
+      req.session.initialized = true;
+    }
+    next();
+  });
+
+  // CSRF protection (must come after cookie-parser, session, and session init)
+  // Wrap with error handling to log CSRF failures for debugging
+  app.use((req, res, next) => {
+    doubleCsrfProtection(req, res, (err) => {
+      if (err) {
+        logger.error('CSRF validation failed', {
+          error: err.message,
+          code: err.code,
+          method: req.method,
+          path: req.path,
+          hasCsrfCookie: !!req.cookies['saloonbot.x-csrf-token'],
+          hasBodyToken: !!req.body?._csrf,
+          hasHeaderToken: !!req.headers['x-csrf-token'],
+          sessionId: req.session?.id,
+          sessionInitialized: req.session?.initialized
+        });
+      }
+      next(err);
+    });
+  });
 
   // Flash message middleware
   app.use((req, res, next) => {
@@ -172,14 +202,7 @@ function createApp() {
   });
 
   // Make CSRF token available to templates
-  // Ensure session is initialized before generating CSRF token
-  // This is necessary because saveUninitialized:false means session won't exist
-  // until we explicitly touch it, which would cause CSRF validation to fail
   app.use((req, res, next) => {
-    // Touch the session to ensure it's saved (required for CSRF token consistency)
-    if (!req.session.initialized) {
-      req.session.initialized = true;
-    }
     res.locals.csrfToken = generateCsrfToken(req, res);
     next();
   });
