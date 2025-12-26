@@ -409,6 +409,89 @@ router.post('/:id/commands/:cmdId/responses', (req, res) => {
 });
 
 /**
+ * Import responses from a text file
+ * Each line in the file becomes a separate response with weight=1
+ * NOTE: This route must be defined BEFORE the /:respId route to prevent
+ * "import" from being matched as a respId parameter
+ */
+router.post('/:id/commands/:cmdId/responses/import', upload.single('responses_file'), (req, res) => {
+  const channelId = parseInt(req.params.id, 10);
+  const cmdId = parseInt(req.params.cmdId, 10);
+
+  const channel = channelRepo.findById(channelId);
+  if (!channel) {
+    req.flash('error', 'Channel not found');
+    return res.redirect('/channels');
+  }
+
+  const command = commandRepo.findById(cmdId);
+  if (!command || command.channel_id !== channelId) {
+    req.flash('error', 'Command not found');
+    return res.redirect(`/channels/${channelId}/commands`);
+  }
+
+  // Check if command is in random mode
+  if (command.response_mode !== 'random') {
+    req.flash('error', 'Import is only available for commands with random response mode');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  if (!req.file) {
+    req.flash('error', 'Please select a file to upload');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  // Validate that the file path is within the upload directory (prevent path traversal)
+  const safeFilePath = validateUploadPath(req.file.path);
+  if (!safeFilePath) {
+    logger.warn('Path traversal attempt detected in file upload', {
+      providedPath: req.file.path,
+      uploadRoot
+    });
+    req.flash('error', 'Invalid file path');
+    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+  }
+
+  try {
+    // Read and parse the file using validated path
+    const fileContent = fs.readFileSync(safeFilePath, 'utf-8');
+    const lines = fileContent.split(/\r?\n/);
+
+    // Filter out empty lines
+    const responses = lines.filter(line => line.trim().length > 0);
+
+    if (responses.length === 0) {
+      req.flash('error', 'The file contains no valid responses');
+      return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+    }
+
+    // Bulk insert responses with weight=1
+    const insertedCount = commandResponsesRepo.createBulk(cmdId, responses, { weight: 1 });
+
+    logger.info(`Imported ${insertedCount} responses for !${command.command_name} from file`, {
+      channelId,
+      commandId: cmdId,
+      fileName: req.file.originalname
+    });
+
+    req.flash('success', `Successfully imported ${insertedCount} responses`);
+  } catch (err) {
+    logger.error('Failed to import responses', { error: err.message, safeFilePath });
+    req.flash('error', `Failed to import responses: ${err.message}`);
+  } finally {
+    // Always delete the uploaded file using validated path
+    try {
+      fs.unlinkSync(safeFilePath);
+      logger.debug(`Deleted temporary upload file: ${safeFilePath}`);
+    } catch (unlinkErr) {
+      logger.warn(`Failed to delete temporary file: ${safeFilePath}`, { error: unlinkErr.message });
+    }
+  }
+
+  res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
+});
+
+/**
  * Update a response
  */
 router.post('/:id/commands/:cmdId/responses/:respId', (req, res) => {
@@ -508,87 +591,6 @@ router.post('/:id/commands/:cmdId/responses/:respId/delete', (req, res) => {
     req.flash('success', 'Response deleted');
   } catch (err) {
     req.flash('error', `Failed to delete response: ${err.message}`);
-  }
-
-  res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
-});
-
-/**
- * Import responses from a text file
- * Each line in the file becomes a separate response with weight=1
- */
-router.post('/:id/commands/:cmdId/responses/import', upload.single('responses_file'), (req, res) => {
-  const channelId = parseInt(req.params.id, 10);
-  const cmdId = parseInt(req.params.cmdId, 10);
-
-  const channel = channelRepo.findById(channelId);
-  if (!channel) {
-    req.flash('error', 'Channel not found');
-    return res.redirect('/channels');
-  }
-
-  const command = commandRepo.findById(cmdId);
-  if (!command || command.channel_id !== channelId) {
-    req.flash('error', 'Command not found');
-    return res.redirect(`/channels/${channelId}/commands`);
-  }
-
-  // Check if command is in random mode
-  if (command.response_mode !== 'random') {
-    req.flash('error', 'Import is only available for commands with random response mode');
-    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
-  }
-
-  if (!req.file) {
-    req.flash('error', 'Please select a file to upload');
-    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
-  }
-
-  // Validate that the file path is within the upload directory (prevent path traversal)
-  const safeFilePath = validateUploadPath(req.file.path);
-  if (!safeFilePath) {
-    logger.warn('Path traversal attempt detected in file upload', {
-      providedPath: req.file.path,
-      uploadRoot
-    });
-    req.flash('error', 'Invalid file path');
-    return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
-  }
-
-  try {
-    // Read and parse the file using validated path
-    const fileContent = fs.readFileSync(safeFilePath, 'utf-8');
-    const lines = fileContent.split(/\r?\n/);
-
-    // Filter out empty lines
-    const responses = lines.filter(line => line.trim().length > 0);
-
-    if (responses.length === 0) {
-      req.flash('error', 'The file contains no valid responses');
-      return res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
-    }
-
-    // Bulk insert responses with weight=1
-    const insertedCount = commandResponsesRepo.createBulk(cmdId, responses, { weight: 1 });
-
-    logger.info(`Imported ${insertedCount} responses for !${command.command_name} from file`, {
-      channelId,
-      commandId: cmdId,
-      fileName: req.file.originalname
-    });
-
-    req.flash('success', `Successfully imported ${insertedCount} responses`);
-  } catch (err) {
-    logger.error('Failed to import responses', { error: err.message, safeFilePath });
-    req.flash('error', `Failed to import responses: ${err.message}`);
-  } finally {
-    // Always delete the uploaded file using validated path
-    try {
-      fs.unlinkSync(safeFilePath);
-      logger.debug(`Deleted temporary upload file: ${safeFilePath}`);
-    } catch (unlinkErr) {
-      logger.warn(`Failed to delete temporary file: ${safeFilePath}`, { error: unlinkErr.message });
-    }
   }
 
   res.redirect(`/channels/${channelId}/commands/${cmdId}/responses`);
