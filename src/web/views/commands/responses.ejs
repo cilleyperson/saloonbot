@@ -56,8 +56,7 @@
         <h3 class="card-title">Import Responses from File</h3>
       </div>
       <div class="card-body">
-        <form action="/channels/${channel.id}/commands/${command.id}/responses/import" method="POST" enctype="multipart/form-data">
-          <input type="hidden" name="_csrf" value="${csrfToken}">
+        <form action="/channels/${channel.id}/commands/${command.id}/responses/import?_csrf=${encodeURIComponent(csrfToken)}" method="POST" enctype="multipart/form-data">
           <div class="form-group">
             <label for="responses_file" class="form-label">Select Text File</label>
             <input type="file" name="responses_file" id="responses_file" accept=".txt" class="form-input" required>
