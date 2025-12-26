@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Twitch chatbot called "Saloon Bot" built with Node.js and the Twurple library (v8.x). The bot supports multiple Twitch channels with per-channel configuration, custom commands with emoji support, counters, predefined commands (Magic 8 Ball, Dad Jokes, Dictionary, Rock Paper Scissors, Trivia, Random Facts, Advice, Bot Commands List), and automatic notifications. Features a secure web-based admin interface with authentication, token encryption, CSRF protection, and HTTPS support.
+This is a Twitch chatbot called "Saloon Bot" built with Node.js and the Twurple library (v8.x). The bot supports multiple Twitch channels with per-channel configuration, custom commands with emoji support, counters, predefined commands (Magic 8 Ball, Dad Jokes, Dictionary, Rock Paper Scissors, Trivia, Random Facts, Advice, Bot Commands List), and automatic notifications. Features a secure web-based admin interface with authentication, two-factor authentication (TOTP), token encryption, CSRF protection, and HTTPS support.
 
 ## Commands
 
@@ -20,6 +20,12 @@ npm run dev
 
 # Run tests
 npm test
+
+# Run tests with watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
 
 # Generate SSL certificates for HTTPS
 npm run generate-certs
@@ -83,7 +89,7 @@ twitch-saloonbot/
 │   │       └── trivia-stats-repo.js       # Trivia game statistics
 │   │
 │   ├── services/               # External API integrations (5 services)
-│   │   ├── advice-api.js      # adviceslip.com integration
+│   │   ├── advice-api.js      # zenquotes.io integration (quotes/advice)
 │   │   ├── dadjoke-api.js     # icanhazdadjoke.com integration
 │   │   ├── dictionary-api.js  # Free Dictionary API integration
 │   │   ├── randomfact-api.js  # uselessfacts.jsph.pl integration
@@ -94,40 +100,48 @@ twitch-saloonbot/
 │   │   ├── crypto.js          # AES-256-GCM token encryption
 │   │   ├── logger.js          # Winston logger with sensitive data redaction
 │   │   ├── message-splitter.js # Twitch message length splitting
-│   │   └── template.js        # Message template formatting
+│   │   ├── template.js        # Message template formatting
+│   │   └── totp.js            # TOTP utilities for two-factor auth
 │   │
 │   └── web/
 │       ├── index.js           # Express app setup with security middleware
 │       ├── middleware/        # Express middleware
 │       │   └── auth.js        # Authentication (requireAuth, setLocals)
-│       ├── routes/            # HTTP route handlers
+│       ├── routes/            # HTTP route handlers (9 routes)
 │       │   ├── auth.js        # Twitch OAuth routes
 │       │   ├── channels.js
 │       │   ├── chat-memberships.js
-│       │   ├── commands.js
+│       │   ├── commands.js    # Includes bulk import with multer
 │       │   ├── counters.js
 │       │   ├── dashboard.js
-│       │   ├── login.js       # Admin login/logout
-│       │   └── predefined-commands.js
+│       │   ├── login.js       # Admin login/logout with 2FA
+│       │   ├── predefined-commands.js
+│       │   └── two-factor.js  # 2FA setup and management
 │       └── views/             # EJS templates for admin UI
 │           ├── layout.ejs
 │           ├── login.ejs
+│           ├── 2fa-challenge.ejs  # 2FA verification during login
 │           ├── dashboard.ejs
 │           ├── error.ejs
+│           ├── account/       # Account security settings
+│           │   ├── security.ejs
+│           │   ├── 2fa-setup.ejs
+│           │   └── 2fa-verify-action.ejs
 │           ├── channels/
 │           ├── chat-memberships/
 │           ├── commands/
 │           ├── counters/
 │           └── predefined-commands/
 │
-├── migrations/                # Database migrations (7 migrations)
+├── migrations/                # Database migrations (8 migrations)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
 │   ├── 004_command_responses.sql
 │   ├── 005_emoji_support.sql
 │   ├── 006_trivia_stats.sql
-│   └── 007_admin_users.sql    # Admin authentication
+│   ├── 007_admin_users.sql    # Admin authentication
+│   └── 008_two_factor_auth.sql # TOTP and backup codes
 │
 ├── docker/                    # Docker configuration
 │   ├── Dockerfile            # Non-root user, security hardened
@@ -148,6 +162,13 @@ twitch-saloonbot/
 ├── certs/                     # SSL certificates (gitignored)
 │   ├── server.key
 │   └── server.crt
+│
+├── tests/                     # Jest test suite
+│   ├── setup.js              # Test configuration
+│   ├── unit/                 # Unit tests
+│   │   └── totp.test.js
+│   └── integration/          # Integration tests
+│       └── two-factor.test.js
 │
 └── docs/                      # Documentation
     └── sec-review-1/         # Security review documentation
@@ -182,6 +203,8 @@ The application includes comprehensive security features:
 - Session-based authentication with secure cookies
 - Account lockout after 5 failed attempts (15-minute duration)
 - Session regeneration after login
+- Two-factor authentication (TOTP) with RFC 6238 compliance
+- Backup codes (10 codes, 8 hex chars each, bcrypt hashed)
 
 **Token Encryption:**
 - OAuth tokens encrypted at rest using AES-256-GCM
@@ -191,10 +214,12 @@ The application includes comprehensive security features:
 
 **Web Security:**
 - Helmet middleware for security headers (CSP, X-Frame-Options, etc.)
-- CSRF protection via csurf middleware
+- CSRF protection via @dr.pogodin/csurf (maintained fork)
 - Rate limiting (100 req/15min global, 10 req/15min auth)
 - Body parser limits (10kb)
 - Sensitive data redaction in logs
+- Multipart form CSRF validation via query string for file uploads
+- Path traversal protection on file uploads
 
 **Docker Security:**
 - Non-root user in container
@@ -203,7 +228,7 @@ The application includes comprehensive security features:
 
 ### Database
 
-SQLite database with better-sqlite3. Current schema version: 7
+SQLite database with better-sqlite3. Current schema version: 8
 
 **Core Tables:**
 - `schema_version` - Tracks applied migrations
@@ -213,7 +238,7 @@ SQLite database with better-sqlite3. Current schema version: 7
 - `custom_commands` - !command definitions (with emoji support)
 - `counter_commands` - word++ counter definitions (with emoji support)
 - `bot_auth` - Bot account OAuth tokens (encrypted)
-- `admin_users` - Admin user credentials
+- `admin_users` - Admin user credentials with 2FA fields (totp_secret, totp_enabled, backup_codes)
 
 **Chat Membership Tables:**
 - `channel_chat_memberships` - Channels the bot should join for a connected channel
@@ -235,16 +260,19 @@ SQLite database with better-sqlite3. Current schema version: 7
 
 Express.js server with EJS templates and comprehensive security:
 - Login required for all admin routes
+- Two-factor authentication (TOTP) with QR code setup
 - Dashboard with bot status
 - Channel management (add/remove/configure)
 - Chat membership management
 - Command CRUD with cooldowns, user levels, emoji, chat scopes, and multiple responses
+- Bulk import of command responses from text files
 - Counter management with emoji and chat scopes
 - Predefined command configuration (10 commands)
 - Magic 8 Ball response management
 - Custom dictionary definitions
 - RPS leaderboard and stats
 - Trivia leaderboard and stats
+- Account security settings (2FA management, backup codes)
 
 ## Environment Configuration
 
@@ -316,6 +344,7 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
 
 ```json
 {
+  "@dr.pogodin/csurf": "^1.16.6",
   "@twurple/api": "^8.0.2",
   "@twurple/auth": "^8.0.2",
   "@twurple/chat": "^8.0.2",
@@ -323,14 +352,24 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
   "bcrypt": "^6.0.0",
   "better-sqlite3": "^12.5.0",
   "cookie-parser": "^1.4.7",
-  "csurf": "^1.11.0",
   "dotenv": "^17.2.3",
   "ejs": "^3.1.10",
   "express": "^5.2.1",
-  "express-rate-limit": "^7.1.5",
+  "express-rate-limit": "^8.2.1",
   "express-session": "^1.18.2",
   "helmet": "^8.1.0",
+  "multer": "^2.0.2",
+  "otpauth": "^9.4.1",
+  "qrcode": "^1.5.4",
   "winston": "^3.19.0"
+}
+```
+
+**Dev Dependencies:**
+```json
+{
+  "jest": "^30.2.0",
+  "supertest": "^7.1.4"
 }
 ```
 
@@ -346,7 +385,7 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
 ### External API Services
 All services use `fetchWithTimeout` from `src/utils/api-client.js` for consistent timeout handling (10 seconds).
 
-- **Advice Slip API** (`src/services/advice-api.js`) - `https://api.adviceslip.com/advice`
+- **ZenQuotes API** (`src/services/advice-api.js`) - `https://zenquotes.io/api/random` (quotes with author attribution)
 - **icanhazdadjoke** (`src/services/dadjoke-api.js`) - Random dad jokes
 - **Free Dictionary API** (`src/services/dictionary-api.js`) - `https://api.dictionaryapi.dev/api/v2/entries/en/{word}`
 - **Random Useless Facts** (`src/services/randomfact-api.js`) - `https://uselessfacts.jsph.pl/api/v2/facts/random`

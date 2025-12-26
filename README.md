@@ -37,6 +37,7 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 
 ### Security Features
 - **Admin Authentication** - Secure login with bcrypt password hashing and account lockout
+- **Two-Factor Authentication** - TOTP-based 2FA with QR code setup and backup codes
 - **Token Encryption** - OAuth tokens encrypted at rest using AES-256-GCM
 - **CSRF Protection** - Cross-site request forgery protection on all forms
 - **Security Headers** - Comprehensive HTTP security headers via Helmet
@@ -44,7 +45,7 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - **Session Security** - Secure cookie configuration with httpOnly and sameSite
 
 ### Predefined Commands (10 Commands)
-- **Random Advice** (`!advice`) - Get random life advice from adviceslip.com
+- **Random Advice** (`!advice`) - Get inspirational quotes with author attribution
 - **Magic 8 Ball** (`!ball`) - Get random fortune-telling responses
 - **Bot Commands** (`!botcommands`) - List all enabled commands for the current chat
 - **Dad Jokes** (`!dadjoke`) - Get random dad jokes from icanhazdadjoke.com
@@ -247,6 +248,22 @@ Saloon Bot includes comprehensive security features to protect your deployment.
 - Session-based authentication with secure cookies
 - Automatic session regeneration after login
 
+### Two-Factor Authentication (2FA)
+
+Optional but recommended TOTP-based two-factor authentication:
+- RFC 6238 compliant time-based one-time passwords
+- QR code generation for easy authenticator app setup
+- 10 backup codes for account recovery (single-use)
+- Works with any TOTP authenticator (Google Authenticator, Authy, 1Password, etc.)
+
+To enable 2FA:
+1. Log in to the admin interface
+2. Go to Account → Security Settings
+3. Click "Enable Two-Factor Authentication"
+4. Scan the QR code with your authenticator app
+5. Enter the verification code
+6. Save your backup codes in a secure location
+
 ### Token Encryption
 
 OAuth tokens are encrypted at rest using AES-256-GCM:
@@ -291,6 +308,21 @@ For local development with auto-reload on file changes:
 
 ```bash
 npm run dev
+```
+
+### Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
 ```
 
 ### Production
@@ -444,10 +476,11 @@ Access the admin interface at `http://localhost:3000` (or `https://localhost:344
 |---------|-------------|
 | **Dashboard** | Bot status, connected channels overview |
 | **Channels** | Manage connected channels, view status |
-| **Commands** | Create and manage custom `!commands` |
+| **Commands** | Create and manage custom `!commands` with bulk import |
 | **Counters** | Create and manage `word++` counters |
 | **Predefined Commands** | Enable/configure built-in commands |
 | **Chat Memberships** | Join additional chats for cross-channel commands |
+| **Account Security** | Two-factor authentication and backup codes |
 
 ---
 
@@ -510,14 +543,20 @@ twitch-saloonbot/
 │   ├── docker-compose.yml
 │   └── docker-compose.dev.yml
 │
-├── migrations/              # Database migrations (7 total)
+├── migrations/              # Database migrations (8 total)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
 │   ├── 004_command_responses.sql
 │   ├── 005_emoji_support.sql
 │   ├── 006_trivia_stats.sql
-│   └── 007_admin_users.sql
+│   ├── 007_admin_users.sql
+│   └── 008_two_factor_auth.sql
+│
+├── tests/                   # Jest test suite
+│   ├── setup.js
+│   ├── unit/
+│   └── integration/
 │
 ├── scripts/                 # Utility scripts
 │   ├── generate-certs.sh    # Generate SSL certificates
@@ -596,6 +635,11 @@ twitch-saloonbot/
 - Ensure `TOKEN_ENCRYPTION_KEY` is set (64 hex characters)
 - Run `node scripts/migrate-tokens.js` to encrypt existing tokens
 
+**Two-factor authentication issues**
+- Ensure your device clock is synchronized (TOTP is time-based)
+- Use backup codes if you've lost access to your authenticator
+- Backup codes are single-use and cannot be regenerated without disabling 2FA
+
 ### Logs
 
 ```bash
@@ -645,7 +689,7 @@ This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - s
 - [Twurple](https://twurple.js.org/) - Twitch API library
 - [Free Dictionary API](https://dictionaryapi.dev/) - Dictionary definitions
 - [icanhazdadjoke](https://icanhazdadjoke.com/) - Dad jokes API
-- [Advice Slip API](https://api.adviceslip.com/) - Random advice
+- [ZenQuotes](https://zenquotes.io/) - Inspirational quotes API
 - [Random Useless Facts](https://uselessfacts.jsph.pl/) - Random facts API
 - [Open Trivia Database](https://opentdb.com/) - Trivia questions API
 
