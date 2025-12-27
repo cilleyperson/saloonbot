@@ -310,8 +310,9 @@ code {
 }
 
 .header-logo img {
-  height: 32px;
+  height: 40px;
   width: auto;
+  border-radius: var(--radius-sm);
 }
 
 .header-menu-toggle {
@@ -1599,5 +1600,67 @@ code {
 
   .container {
     padding: var(--space-4);
+  }
+}
+
+/* ----------------------------------------
+   9. Login Page
+   ---------------------------------------- */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+}
+
+.login-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.login-logo {
+  width: 128px;
+  height: 128px;
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.login-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.login-header p {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+/* Login page responsive */
+@media (max-width: 480px) {
+  .login-logo {
+    width: 96px;
+    height: 96px;
+  }
+
+  .login-header h1 {
+    font-size: var(--text-xl);
   }
 }
