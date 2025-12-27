@@ -2,6 +2,8 @@
  * Template utility for formatting messages with variable substitution
  */
 
+const sanitizeHtml = require('sanitize-html');
+
 /**
  * Format a template string with variable substitution
  * Variables are in the format {variableName}
@@ -27,8 +29,8 @@ function formatTemplate(template, variables = {}) {
 }
 
 /**
- * Strip HTML tags from a string
- * Handles complete tags, partial/malformed tags, comments, and potential XSS vectors
+ * Strip HTML tags from a string using sanitize-html library
+ * Removes all HTML tags, comments, and dangerous content while preserving text
  *
  * @param {string} text - The text containing HTML to strip
  * @returns {string} Text with HTML removed
@@ -36,17 +38,14 @@ function formatTemplate(template, variables = {}) {
 function stripHtmlTags(text) {
   if (!text || typeof text !== 'string') return '';
 
-  return text
-    // Remove HTML comments (including multiline)
-    .replace(/<!--[\s\S]*?-->/g, '')
-    // Remove script/style elements entirely (including content)
-    .replace(/<(script|style|iframe|object|embed|noscript)[^>]*>[\s\S]*?<\/\1>/gi, '')
-    // Remove complete HTML tags (including self-closing)
-    .replace(/<[^>]*>/g, '')
-    // Remove incomplete/malformed tags at end of string (e.g., "<script" without closing ">")
-    .replace(/<[a-zA-Z][^>]*$/g, '')
-    // Remove partial dangerous tags that weren't caught (e.g., "<script alert" without ">")
-    .replace(/<(?:script|style|iframe|object|embed|form|input|button|link|meta|noscript)[^>]*/gi, '');
+  // Use sanitize-html with no allowed tags to strip all HTML
+  // This handles all edge cases including malformed tags, comments, and XSS vectors
+  return sanitizeHtml(text, {
+    allowedTags: [],
+    allowedAttributes: {},
+    // Don't encode entities - we handle that separately with the 'he' library
+    disallowedTagsMode: 'discard'
+  });
 }
 
 /**
