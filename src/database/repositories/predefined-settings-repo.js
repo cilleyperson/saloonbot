@@ -6,7 +6,7 @@ const logger = createChildLogger('predefined-settings-repo');
 /**
  * List of available predefined commands
  */
-const PREDEFINED_COMMANDS = ['advice', 'ball', 'botcommands', 'dadjoke', 'define', 'randomfact', 'rps', 'rpsstats', 'trivia', 'triviastats'];
+const PREDEFINED_COMMANDS = ['advice', 'ball', 'botcommands', 'dadjoke', 'define', 'horoscope', 'randomfact', 'rps', 'rpsstats', 'trivia', 'triviastats'];
 
 /**
  * Valid chat scope types
@@ -263,6 +263,13 @@ function getCommandInfo(commandName) {
       trigger: '!define <word>',
       description: 'Look up word definitions using dictionary API or custom definitions',
       emoji: '📖'
+    },
+    horoscope: {
+      name: 'horoscope',
+      displayName: 'Daily Horoscope',
+      trigger: '!horoscope <sign>',
+      description: 'Get your daily horoscope reading for any zodiac sign',
+      emoji: '🔮'
     },
     randomfact: {
       name: 'randomfact',

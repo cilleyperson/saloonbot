@@ -2,6 +2,8 @@
  * Template utility for formatting messages with variable substitution
  */
 
+const sanitizeHtml = require('sanitize-html');
+
 /**
  * Format a template string with variable substitution
  * Variables are in the format {variableName}
@@ -23,6 +25,26 @@ function formatTemplate(template, variables = {}) {
       return String(value);
     }
     return match; // Keep original placeholder if variable not found
+  });
+}
+
+/**
+ * Strip HTML tags from a string using sanitize-html library
+ * Removes all HTML tags, comments, and dangerous content while preserving text
+ *
+ * @param {string} text - The text containing HTML to strip
+ * @returns {string} Text with HTML removed
+ */
+function stripHtmlTags(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  // Use sanitize-html with no allowed tags to strip all HTML
+  // This handles all edge cases including malformed tags, comments, and XSS vectors
+  return sanitizeHtml(text, {
+    allowedTags: [],
+    allowedAttributes: {},
+    // Don't encode entities - we handle that separately with the 'he' library
+    disallowedTagsMode: 'discard'
   });
 }
 
@@ -97,6 +119,7 @@ function parseTemplateVariables(template) {
 
 module.exports = {
   formatTemplate,
+  stripHtmlTags,
   sanitizeMessage,
   formatTier,
   formatNumber,
