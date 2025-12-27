@@ -1,4 +1,6 @@
 on: [push]
+permissions:
+  contents: read
 
 jobs:
   disord_test_message:
