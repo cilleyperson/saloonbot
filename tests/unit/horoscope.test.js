@@ -169,6 +169,26 @@ describe('Horoscope API', () => {
       expect(result).toContain('"Life"');
     });
 
+    it('should handle double-encoded entities correctly (decode only once)', () => {
+      // Double-encoded: &amp;amp; should become &amp; not &
+      const html = `<p><strong>Dec 27, 2025</strong> - Tom &amp;amp; Jerry are friends. Use &amp;lt;html&amp;gt; tags.</p>`;
+
+      const result = horoscopeApi.extractHoroscopeText(html);
+      // The 'he' library only decodes once, so &amp;amp; becomes &amp;
+      expect(result).toContain('&amp;');
+      expect(result).toContain('&lt;html&gt;');
+    });
+
+    it('should decode numeric and hex entities', () => {
+      // &#8217; = right single quotation mark (U+2019: ')
+      // &#x2014; = em dash (U+2014: —)
+      const html = `<p><strong>Dec 27, 2025</strong> - It&#8217;s a great day&#x2014;truly wonderful for your sign.</p>`;
+
+      const result = horoscopeApi.extractHoroscopeText(html);
+      // Verify the Unicode characters are decoded correctly
+      expect(result).toContain('It\u2019s a great day\u2014truly wonderful');
+    });
+
     it('should remove nested HTML tags', () => {
       const html = `<p><strong>Dec 27, 2025</strong> - Today is <strong>great</strong> and <a href="#">exciting</a>!</p>`;
 

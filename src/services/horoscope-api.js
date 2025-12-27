@@ -1,3 +1,4 @@
+const he = require('he');
 const { createChildLogger } = require('../utils/logger');
 const { fetchWithTimeout } = require('../utils/api-client');
 const horoscopeRepo = require('../database/repositories/horoscope-repo');
@@ -47,17 +48,13 @@ function extractHoroscopeText(html) {
     .trim()
     // Remove any remaining HTML tags
     .replace(/<[^>]*>/g, '')
-    // Decode common HTML entities
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Decode HTML entities using the 'he' library
+  // This properly handles all named entities, numeric entities, and avoids double-decoding
+  text = he.decode(text);
 
   // Validate extracted text length (should be reasonable)
   if (text.length < 20 || text.length > 2000) {

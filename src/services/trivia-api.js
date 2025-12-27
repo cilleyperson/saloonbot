@@ -1,3 +1,4 @@
+const he = require('he');
 const { createChildLogger } = require('../utils/logger');
 const { fetchWithTimeout } = require('../utils/api-client');
 
@@ -11,53 +12,14 @@ const API_URL = 'https://opentdb.com/api.php';
 const API_TIMEOUT_MS = 15000;
 
 /**
- * HTML entity decode helper
+ * HTML entity decode helper using the 'he' library
+ * Properly handles all named entities, numeric entities, and avoids double-decoding
  * @param {string} text - Text with HTML entities
  * @returns {string} Decoded text
  */
 function decodeHtmlEntities(text) {
   if (!text) return text;
-
-  const entities = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&#039;': "'",
-    '&apos;': "'",
-    '&nbsp;': ' ',
-    '&ldquo;': '"',
-    '&rdquo;': '"',
-    '&lsquo;': "'",
-    '&rsquo;': "'",
-    '&ndash;': '-',
-    '&mdash;': '-',
-    '&hellip;': '...',
-    '&eacute;': 'e',
-    '&Eacute;': 'E',
-    '&egrave;': 'e',
-    '&iacute;': 'i',
-    '&oacute;': 'o',
-    '&uacute;': 'u',
-    '&ntilde;': 'n',
-    '&Ntilde;': 'N'
-  };
-
-  let decoded = text;
-  for (const [entity, char] of Object.entries(entities)) {
-    decoded = decoded.replace(new RegExp(entity, 'g'), char);
-  }
-
-  // Handle numeric entities
-  decoded = decoded.replace(/&#(\d+);/g, (match, code) => {
-    return String.fromCharCode(parseInt(code, 10));
-  });
-
-  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (match, code) => {
-    return String.fromCharCode(parseInt(code, 16));
-  });
-
-  return decoded;
+  return he.decode(text);
 }
 
 /**
