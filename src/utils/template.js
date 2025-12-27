@@ -27,6 +27,29 @@ function formatTemplate(template, variables = {}) {
 }
 
 /**
+ * Strip HTML tags from a string
+ * Handles complete tags, partial/malformed tags, comments, and potential XSS vectors
+ *
+ * @param {string} text - The text containing HTML to strip
+ * @returns {string} Text with HTML removed
+ */
+function stripHtmlTags(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  return text
+    // Remove HTML comments (including multiline)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Remove script/style elements entirely (including content)
+    .replace(/<(script|style|iframe|object|embed|noscript)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    // Remove complete HTML tags (including self-closing)
+    .replace(/<[^>]*>/g, '')
+    // Remove incomplete/malformed tags at end of string (e.g., "<script" without closing ">")
+    .replace(/<[a-zA-Z][^>]*$/g, '')
+    // Remove partial dangerous tags that weren't caught (e.g., "<script alert" without ">")
+    .replace(/<(?:script|style|iframe|object|embed|form|input|button|link|meta|noscript)[^>]*/gi, '');
+}
+
+/**
  * Sanitize a message to prevent abuse
  * - Removes @everyone and @here mentions
  * - Trims whitespace
@@ -97,6 +120,7 @@ function parseTemplateVariables(template) {
 
 module.exports = {
   formatTemplate,
+  stripHtmlTags,
   sanitizeMessage,
   formatTier,
   formatNumber,

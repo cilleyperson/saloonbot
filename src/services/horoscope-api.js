@@ -1,6 +1,7 @@
 const he = require('he');
 const { createChildLogger } = require('../utils/logger');
 const { fetchWithTimeout } = require('../utils/api-client');
+const { stripHtmlTags } = require('../utils/template');
 const horoscopeRepo = require('../database/repositories/horoscope-repo');
 
 const logger = createChildLogger('horoscope-api');
@@ -44,10 +45,8 @@ function extractHoroscopeText(html) {
   }
 
   // Clean up the extracted text
-  let text = match[1]
-    .trim()
-    // Remove any remaining HTML tags
-    .replace(/<[^>]*>/g, '')
+  // Use stripHtmlTags to safely remove all HTML including partial/malformed tags
+  let text = stripHtmlTags(match[1])
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     .trim();

@@ -283,6 +283,40 @@ describe('Security Tests', () => {
       }
     });
 
+    it('should handle incomplete/partial HTML tags', () => {
+      // Partial script tag without closing ">"
+      const partialTagHtml = '<p><strong>Dec 27, 2025</strong> - Your day looks great<script alert("xss")</p>';
+      const result = horoscopeApi.extractHoroscopeText(partialTagHtml);
+      if (result) {
+        expect(result).not.toContain('<script');
+        expect(result).not.toContain('alert');
+        expect(result).toContain('Your day looks great');
+      }
+    });
+
+    it('should remove dangerous HTML elements', () => {
+      const dangerousHtml = '<p><strong>Dec 27, 2025</strong> - Good day <iframe src="evil.com">frame</iframe> for you <style>body{display:none}</style> today.</p>';
+      const result = horoscopeApi.extractHoroscopeText(dangerousHtml);
+      if (result) {
+        expect(result).not.toContain('iframe');
+        expect(result).not.toContain('style');
+        expect(result).not.toContain('evil.com');
+        expect(result).toContain('Good day');
+        expect(result).toContain('today');
+      }
+    });
+
+    it('should remove HTML comments', () => {
+      const htmlWithComments = '<p><strong>Dec 27, 2025</strong> - Great day <!-- hidden comment --> for your sign.</p>';
+      const result = horoscopeApi.extractHoroscopeText(htmlWithComments);
+      if (result) {
+        expect(result).not.toContain('<!--');
+        expect(result).not.toContain('hidden comment');
+        expect(result).toContain('Great day');
+        expect(result).toContain('for your sign');
+      }
+    });
+
     it('should limit HTML processing size', () => {
       // Create very large HTML (over 500KB limit)
       const largeHtml = `<p><strong>Dec 27, 2025</strong> - ${'A'.repeat(600000)}</p>`;
