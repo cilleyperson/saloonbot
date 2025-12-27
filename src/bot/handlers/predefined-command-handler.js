@@ -8,6 +8,7 @@ const counterRepo = require('../../database/repositories/counter-repo');
 const adviceApi = require('../../services/advice-api');
 const dictionaryApi = require('../../services/dictionary-api');
 const dadjokeApi = require('../../services/dadjoke-api');
+const horoscopeApi = require('../../services/horoscope-api');
 const randomfactApi = require('../../services/randomfact-api');
 const triviaApi = require('../../services/trivia-api');
 const { splitMessage } = require('../../utils/message-splitter');
@@ -173,6 +174,9 @@ class PredefinedCommandHandler {
           break;
         case 'define':
           await this.handleDefine(channelId, chatName, user, args);
+          break;
+        case 'horoscope':
+          await this.handleHoroscope(chatName, user, args);
           break;
         case 'randomfact':
           await this.handleRandomfact(chatName, user);
@@ -413,6 +417,48 @@ class PredefinedCommandHandler {
     } catch (error) {
       logger.error(`Dictionary API error for word: ${word}`, { error: error.message });
       await this.chatClient.say(chatName, `📖 @${user}, the dictionary service is currently unavailable.`);
+    }
+  }
+
+  /**
+   * Handle !horoscope command (Daily Horoscope)
+   * @param {string} chatName - Chat to respond in
+   * @param {string} user - User who triggered the command
+   * @param {string[]} args - Command arguments (zodiac sign)
+   */
+  async handleHoroscope(chatName, user, args) {
+    if (args.length === 0) {
+      await this.chatClient.say(chatName, `🔮 @${user}, usage: !horoscope <sign> (e.g., !horoscope aries, !horoscope leo)`);
+      return;
+    }
+
+    const signInput = args[0];
+
+    try {
+      const result = await horoscopeApi.getHoroscope(signInput);
+
+      if (!result.success) {
+        await this.chatClient.say(chatName, `🔮 @${user}, ${result.error}`);
+        return;
+      }
+
+      // Format and send the response
+      const response = horoscopeApi.formatResponse(result.sign, result.text, result.emoji);
+
+      // Split if too long for Twitch chat
+      const chunks = splitMessage(response);
+      for (const chunk of chunks) {
+        await this.chatClient.say(chatName, chunk);
+        if (chunks.length > 1) {
+          await this.delay(500);
+        }
+      }
+
+      logger.debug(`!horoscope executed for ${user} in ${chatName} (sign: ${result.sign}, cached: ${result.fromCache})`);
+
+    } catch (error) {
+      logger.error('Horoscope error', { error: error.message, user, chatName });
+      await this.chatClient.say(chatName, `🔮 @${user}, the horoscope service is temporarily unavailable. Please try again later.`);
     }
   }
 
