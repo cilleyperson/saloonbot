@@ -93,15 +93,19 @@ class YOLODetector {
       this.outputName = this.session.outputNames[0];
 
       // Detect model input type (some models use float16 for efficiency)
-      const inputMeta = this.session.inputNames.length > 0
-        ? this.session.handler.inputMeta[this.inputName]
-        : null;
-      this.inputType = inputMeta?.dataType || 'float32';
-
-      // Map ONNX data type enum to string if needed
-      // ONNX Runtime uses: 1=float32, 10=float16
-      if (typeof this.inputType === 'number') {
-        this.inputType = this.inputType === 10 ? 'float16' : 'float32';
+      // ONNX Runtime JS API provides inputMetadata array with type info
+      this.inputType = 'float32'; // Default fallback
+      try {
+        if (this.session.inputMetadata && this.session.inputMetadata.length > 0) {
+          const inputMeta = this.session.inputMetadata[0];
+          // inputMeta.type contains the data type string (e.g., 'float16', 'float32')
+          if (inputMeta && inputMeta.type) {
+            this.inputType = inputMeta.type;
+            logger.debug('Detected model input type from metadata', { type: inputMeta.type });
+          }
+        }
+      } catch (metaError) {
+        logger.debug('Could not read input metadata, using default float32', { error: metaError.message });
       }
 
       this.isInitialized = true;
@@ -153,21 +157,34 @@ class YOLODetector {
 
     try {
       // Create input tensor (NCHW format: batch, channels, height, width)
-      // Convert to float16 if model expects it
-      let inputTensor;
-      if (this.inputType === 'float16') {
-        const float16Data = this._float32ToFloat16(tensorData);
-        inputTensor = new ort.Tensor('float16', float16Data, [1, 3, this.inputSize, this.inputSize]);
-      } else {
-        inputTensor = new ort.Tensor('float32', tensorData, [1, 3, this.inputSize, this.inputSize]);
-      }
+      // Try with detected type first, fallback to other type if it fails
+      const runInference = async (tensorType) => {
+        let inputTensor;
+        if (tensorType === 'float16') {
+          const float16Data = this._float32ToFloat16(tensorData);
+          inputTensor = new ort.Tensor('float16', float16Data, [1, 3, this.inputSize, this.inputSize]);
+        } else {
+          inputTensor = new ort.Tensor('float32', tensorData, [1, 3, this.inputSize, this.inputSize]);
+        }
 
-      // Run inference with timeout
-      const feeds = { [this.inputName]: inputTensor };
-      const results = await this._runWithTimeout(
-        this.session.run(feeds),
-        this.inferenceTimeout
-      );
+        const feeds = { [this.inputName]: inputTensor };
+        return this._runWithTimeout(this.session.run(feeds), this.inferenceTimeout);
+      };
+
+      let results;
+      try {
+        results = await runInference(this.inputType);
+      } catch (firstError) {
+        // If type mismatch error, try the other type
+        if (firstError.message && firstError.message.includes('Unexpected input data type')) {
+          const alternateType = this.inputType === 'float16' ? 'float32' : 'float16';
+          logger.info(`Input type mismatch, switching from ${this.inputType} to ${alternateType}`);
+          this.inputType = alternateType; // Update for future calls
+          results = await runInference(alternateType);
+        } else {
+          throw firstError;
+        }
+      }
 
       outputData = results[this.outputName].data;
 
