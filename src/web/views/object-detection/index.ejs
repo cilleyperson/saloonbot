@@ -66,14 +66,19 @@
               <td>${ruleCount} rule${ruleCount !== 1 ? 's' : ''}</td>
               <td>
                 <div class="btn-group">
-                  <a href="/channels/${channel.id}/object-detection" class="btn btn-sm">Configure</a>
-                  <form action="/channels/${channel.id}/object-detection/toggle" method="POST" class="inline-form">
+                  <a href="/detection/channels/${channel.id}" class="btn btn-sm">Configure</a>
+                  ${isEnabled ? `
+                  <form action="/detection/channels/${channel.id}/stop" method="POST" class="inline-form">
                     <input type="hidden" name="_csrf" value="${csrfToken}">
-                    <button type="submit" class="btn btn-sm ${isEnabled ? 'btn-secondary' : 'btn-success'}">
-                      ${isEnabled ? 'Disable' : 'Enable'}
-                    </button>
+                    <button type="submit" class="btn btn-sm btn-secondary">Stop</button>
                   </form>
-                  <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-sm btn-secondary">Logs</a>
+                  ` : `
+                  <form action="/detection/channels/${channel.id}/start" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm btn-success">Start</button>
+                  </form>
+                  `}
+                  <a href="/detection/channels/${channel.id}/logs" class="btn btn-sm btn-secondary">Logs</a>
                 </div>
               </td>
             </tr>

@@ -12,7 +12,7 @@
     };
     const displayName = escapeHtml(channel.display_name || channel.twitch_username);
     const username = escapeHtml(channel.twitch_username);
-    const streamUrl = settings.stream_url ? escapeHtml(settings.stream_url) : '';
+    const streamUrl = config.stream_url ? escapeHtml(config.stream_url) : '';
 
     // YOLO classes organized by category
     const yoloClasses = {
@@ -33,18 +33,18 @@
     return `
   <div class="page-header">
     <div class="page-header-content">
-      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <a href="/detection" class="back-link">&larr; Back to Detection</a>
       <h1 class="page-title">Object Detection Settings</h1>
       <p class="page-subtitle">${displayName}</p>
     </div>
     <div class="page-header-actions">
-      <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-secondary">View Logs</a>
+      <a href="/detection/channels/${channel.id}/logs" class="btn btn-secondary">View Logs</a>
     </div>
   </div>
 
   <div class="page-content">
     <!-- Configuration Section -->
-    <form action="/channels/${channel.id}/object-detection/settings" method="POST">
+    <form action="/detection/channels/${channel.id}/config" method="POST">
       <input type="hidden" name="_csrf" value="${csrfToken}">
 
       <div class="card mb-6">
@@ -52,27 +52,18 @@
           <h3 class="card-title">Detection Configuration</h3>
         </div>
         <div class="card-body">
-          <div class="form-group">
-            <label class="toggle">
-              <input type="checkbox" name="detection_enabled" ${settings.detection_enabled ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-              <span>Enable Object Detection</span>
-            </label>
-            <p class="form-help">When enabled, the bot will analyze stream frames for configured objects</p>
-          </div>
-
           <div class="grid grid-cols-2 gap-4">
             <div class="form-group">
-              <label for="frame_interval" class="form-label">Frame Interval (ms)</label>
+              <label for="frame_interval_ms" class="form-label">Frame Interval (ms)</label>
               <input type="range" id="frame_interval_slider" min="500" max="10000" step="100"
-                     value="${settings.frame_interval || 2000}"
-                     oninput="document.getElementById('frame_interval').value = this.value; document.getElementById('frame_interval_display').textContent = this.value + 'ms';">
+                     value="${config.frame_interval_ms || 1000}"
+                     oninput="document.getElementById('frame_interval_ms').value = this.value; document.getElementById('frame_interval_display').textContent = this.value + 'ms';">
               <div class="input-group mt-2">
-                <input type="number" id="frame_interval" name="frame_interval"
-                       value="${settings.frame_interval || 2000}"
+                <input type="number" id="frame_interval_ms" name="frame_interval_ms"
+                       value="${config.frame_interval_ms || 1000}"
                        min="500" max="10000" step="100" class="form-input"
                        oninput="document.getElementById('frame_interval_slider').value = this.value; document.getElementById('frame_interval_display').textContent = this.value + 'ms';">
-                <span class="input-suffix" id="frame_interval_display">${settings.frame_interval || 2000}ms</span>
+                <span class="input-suffix" id="frame_interval_display">${config.frame_interval_ms || 1000}ms</span>
               </div>
               <p class="form-help">How often to capture and analyze stream frames (500-10000ms)</p>
             </div>
@@ -80,10 +71,18 @@
             <div class="form-group">
               <label for="cooldown_seconds" class="form-label">Message Cooldown (seconds)</label>
               <input type="number" id="cooldown_seconds" name="cooldown_seconds"
-                     value="${settings.cooldown_seconds || 30}"
-                     min="1" max="3600" class="form-input">
+                     value="${config.cooldown_seconds || 30}"
+                     min="0" max="3600" class="form-input">
               <p class="form-help">Minimum time between detection messages per object class</p>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label for="max_concurrent_detections" class="form-label">Max Concurrent Detections</label>
+            <input type="number" id="max_concurrent_detections" name="max_concurrent_detections"
+                   value="${config.max_concurrent_detections || 1}"
+                   min="1" max="10" class="form-input">
+            <p class="form-help">Maximum number of concurrent detection processes</p>
           </div>
 
           <div class="form-group">
@@ -111,7 +110,7 @@
 
       <!-- Add Rule Form (hidden by default) -->
       <div id="add-rule-form" class="card-body" style="display: none; border-bottom: 1px solid var(--border-primary);">
-        <form action="/channels/${channel.id}/object-detection/rules" method="POST">
+        <form action="/detection/channels/${channel.id}/rules" method="POST">
           <input type="hidden" name="_csrf" value="${csrfToken}">
 
           <div class="form-group">
@@ -128,25 +127,25 @@
           </div>
 
           <div class="form-group">
-            <label for="confidence_threshold" class="form-label">Confidence Threshold</label>
+            <label for="min_confidence" class="form-label">Minimum Confidence</label>
             <div class="input-group">
               <input type="range" id="confidence_slider" min="0" max="100" step="1" value="50"
-                     oninput="document.getElementById('confidence_threshold').value = this.value; document.getElementById('confidence_display').textContent = this.value + '%';"
+                     oninput="document.getElementById('min_confidence').value = this.value / 100; document.getElementById('confidence_display').textContent = this.value + '%';"
                      style="flex: 1;">
-              <input type="number" id="confidence_threshold" name="confidence_threshold"
-                     value="50" min="0" max="100" step="1" class="form-input" style="width: 80px;"
-                     oninput="document.getElementById('confidence_slider').value = this.value; document.getElementById('confidence_display').textContent = this.value + '%';">
+              <input type="number" id="min_confidence" name="min_confidence"
+                     value="0.5" min="0" max="1" step="0.01" class="form-input" style="width: 80px;"
+                     oninput="document.getElementById('confidence_slider').value = this.value * 100; document.getElementById('confidence_display').textContent = Math.round(this.value * 100) + '%';">
               <span class="input-suffix" id="confidence_display">50%</span>
             </div>
-            <p class="form-help">Minimum confidence level required to trigger (0-100%)</p>
+            <p class="form-help">Minimum confidence level required to trigger (0-1)</p>
           </div>
 
           <div class="form-group">
             <label for="message_template" class="form-label">Message Template</label>
-            <textarea id="message_template" name="message_template" rows="3" class="form-textarea" required
+            <textarea id="message_template" name="message_template" rows="3" class="form-textarea"
                       placeholder="A {object} was detected with {confidence_pct}% confidence!"></textarea>
             <p class="form-help">
-              Available variables: <code>{object}</code> <code>{confidence}</code> <code>{confidence_pct}</code> <code>{count}</code> <code>{streamer}</code> <code>{time}</code>
+              Available variables: <code>{object}</code> <code>{confidence}</code> <code>{confidence_pct}</code> <code>{streamer}</code>
             </p>
           </div>
 
@@ -182,14 +181,15 @@
             <tbody>
               ${rules.map(rule => {
                 const ruleClass = escapeHtml(rule.object_class);
-                const ruleMessage = escapeHtml(rule.message_template);
+                const ruleMessage = escapeHtml(rule.message_template || '');
+                const confidencePct = Math.round(rule.min_confidence * 100);
                 return `
               <tr class="${rule.is_enabled ? '' : 'inactive'}">
                 <td>
                   <code>${ruleClass}</code>
                 </td>
-                <td>${rule.confidence_threshold}%</td>
-                <td class="text-truncate" style="max-width: 300px;" title="${ruleMessage}">${ruleMessage}</td>
+                <td>${confidencePct}%</td>
+                <td class="text-truncate" style="max-width: 300px;" title="${ruleMessage}">${ruleMessage || '<em>No template</em>'}</td>
                 <td>
                   <span class="badge ${rule.is_enabled ? 'badge-success' : 'badge-error'}">
                     ${rule.is_enabled ? 'Enabled' : 'Disabled'}
@@ -198,13 +198,7 @@
                 <td>
                   <div class="btn-group">
                     <button type="button" class="btn btn-sm btn-secondary" onclick="editRule(${rule.id})">Edit</button>
-                    <form action="/channels/${channel.id}/object-detection/rules/${rule.id}/toggle" method="POST" class="inline-form">
-                      <input type="hidden" name="_csrf" value="${csrfToken}">
-                      <button type="submit" class="btn btn-sm ${rule.is_enabled ? 'btn-warning' : 'btn-success'}">
-                        ${rule.is_enabled ? 'Disable' : 'Enable'}
-                      </button>
-                    </form>
-                    <form action="/channels/${channel.id}/object-detection/rules/${rule.id}/delete" method="POST" class="inline-form"
+                    <form action="/detection/channels/${channel.id}/rules/${rule.id}/delete" method="POST" class="inline-form"
                           onsubmit="return confirm('Delete this detection rule?');">
                       <input type="hidden" name="_csrf" value="${csrfToken}">
                       <button type="submit" class="btn btn-sm btn-danger">Delete</button>
@@ -299,13 +293,14 @@
           </div>
 
           <div class="form-group">
-            <label for="edit_confidence_threshold" class="form-label">Confidence Threshold</label>
+            <label for="edit_min_confidence" class="form-label">Minimum Confidence</label>
             <div class="input-group">
               <input type="range" id="edit_confidence_slider" min="0" max="100" step="1" value="50"
-                     oninput="document.getElementById('edit_confidence_threshold').value = this.value;">
-              <input type="number" id="edit_confidence_threshold" name="confidence_threshold"
-                     value="50" min="0" max="100" step="1" class="form-input" style="width: 80px;"
-                     oninput="document.getElementById('edit_confidence_slider').value = this.value;">
+                     oninput="document.getElementById('edit_min_confidence').value = this.value / 100; document.getElementById('edit_confidence_display').textContent = this.value + '%';">
+              <input type="number" id="edit_min_confidence" name="min_confidence"
+                     value="0.5" min="0" max="1" step="0.01" class="form-input" style="width: 80px;"
+                     oninput="document.getElementById('edit_confidence_slider').value = this.value * 100; document.getElementById('edit_confidence_display').textContent = Math.round(this.value * 100) + '%';">
+              <span class="input-suffix" id="edit_confidence_display">50%</span>
             </div>
           </div>
 
@@ -344,11 +339,12 @@
       if (!rule) return;
 
       document.getElementById('edit_object_class').value = rule.object_class;
-      document.getElementById('edit_confidence_threshold').value = rule.confidence_threshold;
-      document.getElementById('edit_confidence_slider').value = rule.confidence_threshold;
-      document.getElementById('edit_message_template').value = rule.message_template;
+      document.getElementById('edit_min_confidence').value = rule.min_confidence;
+      document.getElementById('edit_confidence_slider').value = Math.round(rule.min_confidence * 100);
+      document.getElementById('edit_confidence_display').textContent = Math.round(rule.min_confidence * 100) + '%';
+      document.getElementById('edit_message_template').value = rule.message_template || '';
       document.getElementById('edit_is_enabled').checked = rule.is_enabled;
-      document.getElementById('edit-rule-form').action = '/channels/${channel.id}/object-detection/rules/' + ruleId;
+      document.getElementById('edit-rule-form').action = '/detection/channels/${channel.id}/rules/' + ruleId + '/update';
 
       document.getElementById('edit-rule-modal').classList.add('active');
     }

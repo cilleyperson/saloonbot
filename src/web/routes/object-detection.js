@@ -93,20 +93,19 @@ router.get('/', (req, res) => {
   // Get detection config for each channel
   const channelsWithConfig = channels.map(channel => {
     const config = objectDetectionRepo.getConfig(channel.id);
-    const stats = config ? objectDetectionRepo.getDetectionStats(config.id) : null;
     const rules = config ? objectDetectionRepo.getRules(config.id) : [];
 
     return {
       ...channel,
-      detectionConfig: config,
-      detectionStats: stats,
-      ruleCount: rules.length,
-      enabledRuleCount: rules.filter(r => r.is_enabled).length
+      detection_enabled: config ? config.is_enabled : false,
+      is_monitoring: config ? config.is_enabled : false, // TODO: Check actual orchestrator status
+      rule_count: rules.length
     };
   });
 
-  res.render('object-detection/dashboard', {
+  res.render('object-detection/index', {
     title: 'Object Detection',
+    activePage: 'object-detection',
     channels: channelsWithConfig
   });
 });
@@ -142,6 +141,7 @@ router.get('/channels/:id', (req, res) => {
 
   res.render('object-detection/channel', {
     title: `Object Detection - ${channel.display_name || channel.twitch_username}`,
+    activePage: 'object-detection',
     channel,
     config,
     rules,
@@ -482,7 +482,8 @@ router.get('/channels/:id/logs', (req, res) => {
     return res.redirect(`/detection/channels/${channelId}`);
   }
 
-  // Get pagination params
+  // Get filter and pagination params
+  const filter = req.query.filter || null;
   const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
   const logs = objectDetectionRepo.getRecentLogs(config.id, limit);
   const stats = objectDetectionRepo.getDetectionStats(config.id);
@@ -490,12 +491,15 @@ router.get('/channels/:id/logs', (req, res) => {
 
   res.render('object-detection/logs', {
     title: `Detection Logs - ${channel.display_name || channel.twitch_username}`,
+    activePage: 'object-detection',
     channel,
     config,
     logs,
     stats,
     logCount,
-    limit
+    limit,
+    filter,
+    pagination: null // Pagination not yet implemented
   });
 });
 

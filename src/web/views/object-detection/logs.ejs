@@ -25,12 +25,12 @@
     return `
   <div class="page-header">
     <div class="page-header-content">
-      <a href="/channels/${channel.id}/object-detection" class="back-link">&larr; Back to Detection Settings</a>
+      <a href="/detection/channels/${channel.id}" class="back-link">&larr; Back to Detection Settings</a>
       <h1 class="page-title">Detection Logs</h1>
       <p class="page-subtitle">${displayName}</p>
     </div>
     <div class="page-header-actions">
-      <form action="/channels/${channel.id}/object-detection/logs/clear" method="POST" class="inline-form"
+      <form action="/detection/channels/${channel.id}/logs/clear" method="POST" class="inline-form"
             onsubmit="return confirm('Clear all detection logs for this channel? This cannot be undone.');">
         <input type="hidden" name="_csrf" value="${csrfToken}">
         <button type="submit" class="btn btn-danger">Clear Logs</button>
@@ -42,34 +42,34 @@
     <!-- Stats Summary -->
     <div class="stats-row mb-6">
       <div class="stat-card">
-        <span class="stat-value">${stats.total_detections || 0}</span>
+        <span class="stat-value">${stats.totalDetections || 0}</span>
         <span class="stat-label">Total Detections</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value">${stats.unique_objects || 0}</span>
+        <span class="stat-value">${stats.objectCounts ? stats.objectCounts.length : 0}</span>
         <span class="stat-label">Unique Objects</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value">${stats.messages_sent || 0}</span>
-        <span class="stat-label">Messages Sent</span>
+        <span class="stat-value">${stats.detectionsLast24Hours || 0}</span>
+        <span class="stat-label">Last 24 Hours</span>
       </div>
-      ${stats.most_common ? `
+      ${stats.averageConfidence ? `
       <div class="stat-card">
-        <span class="stat-value">${escapeHtml(stats.most_common)}</span>
-        <span class="stat-label">Most Common</span>
+        <span class="stat-value">${Math.round(stats.averageConfidence * 100)}%</span>
+        <span class="stat-label">Avg Confidence</span>
       </div>
       ` : ''}
     </div>
 
     <!-- Top Objects Breakdown -->
-    ${stats.top_objects && stats.top_objects.length > 0 ? `
+    ${stats.objectCounts && stats.objectCounts.length > 0 ? `
     <div class="card mb-6">
       <div class="card-header">
         <h3 class="card-title">Top Detected Objects</h3>
       </div>
       <div class="card-body">
         <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
-          ${stats.top_objects.slice(0, 8).map(obj => `
+          ${stats.objectCounts.slice(0, 8).map(obj => `
           <div class="stat-card" style="padding: var(--space-3);">
             <span class="stat-value" style="font-size: var(--text-xl);">${obj.count}</span>
             <span class="stat-label"><code>${escapeHtml(obj.object_class)}</code></span>
@@ -83,7 +83,7 @@
     <!-- Filter -->
     <div class="card mb-6">
       <div class="card-body">
-        <form action="/channels/${channel.id}/object-detection/logs" method="GET" class="form-row">
+        <form action="/detection/channels/${channel.id}/logs" method="GET" class="form-row">
           <div class="form-group" style="flex: 1; margin-bottom: 0;">
             <label for="filter" class="form-label">Filter by Object Class</label>
             <select id="filter" name="filter" class="form-select" onchange="this.form.submit()">
@@ -95,7 +95,7 @@
           </div>
           <div class="form-group" style="align-self: flex-end; margin-bottom: 0;">
             ${currentFilter ? `
-            <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-secondary">Clear Filter</a>
+            <a href="/detection/channels/${channel.id}/logs" class="btn btn-secondary">Clear Filter</a>
             ` : ''}
           </div>
         </form>
@@ -158,7 +158,7 @@
       <div class="card-footer">
         <div class="pagination">
           ${pagination.currentPage > 1 ? `
-          <a href="/channels/${channel.id}/object-detection/logs?page=${pagination.currentPage - 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">&larr; Previous</a>
+          <a href="/detection/channels/${channel.id}/logs?page=${pagination.currentPage - 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">&larr; Previous</a>
           ` : `
           <button class="btn btn-sm btn-secondary" disabled>&larr; Previous</button>
           `}
@@ -166,7 +166,7 @@
             Page ${pagination.currentPage} of ${pagination.totalPages}
           </span>
           ${pagination.currentPage < pagination.totalPages ? `
-          <a href="/channels/${channel.id}/object-detection/logs?page=${pagination.currentPage + 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">Next &rarr;</a>
+          <a href="/detection/channels/${channel.id}/logs?page=${pagination.currentPage + 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">Next &rarr;</a>
           ` : `
           <button class="btn btn-sm btn-secondary" disabled>Next &rarr;</button>
           `}
@@ -188,7 +188,7 @@
           <h3>No detection logs yet</h3>
           <p>${currentFilter ? 'No detections found for the selected filter.' : 'Detection logs will appear here once objects are detected in the stream.'}</p>
           ${currentFilter ? `
-          <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-secondary mt-4">Clear Filter</a>
+          <a href="/detection/channels/${channel.id}/logs" class="btn btn-secondary mt-4">Clear Filter</a>
           ` : ''}
         </div>
       </div>
