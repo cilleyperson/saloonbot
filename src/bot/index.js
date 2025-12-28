@@ -8,6 +8,7 @@ const RaidHandler = require('./handlers/raid-handler');
 const SubHandler = require('./handlers/sub-handler');
 const CommandHandler = require('./handlers/command-handler');
 const PredefinedCommandHandler = require('./handlers/predefined-command-handler');
+const { getOrchestrator } = require('../services/detection-orchestrator');
 const { createChildLogger } = require('../utils/logger');
 
 const logger = createChildLogger('bot-core');
@@ -22,6 +23,7 @@ class BotCore {
     this.eventSubListener = null;
     this.channelManager = new ChannelManager();
     this.eventHandler = new EventHandler();
+    this.detectionOrchestrator = null;
     this.running = false;
   }
 
@@ -76,6 +78,15 @@ class BotCore {
 
     // Set up connection event handlers
     this.setupConnectionHandlers();
+
+    // Initialize detection orchestrator (lazy - will be fully initialized on start)
+    try {
+      this.detectionOrchestrator = getOrchestrator(this);
+      logger.debug('Detection orchestrator created');
+    } catch (error) {
+      // Detection orchestrator is optional - log warning but continue
+      logger.warn('Failed to create detection orchestrator', { error: error.message });
+    }
 
     logger.info('Bot core initialized');
     return true;
@@ -146,6 +157,17 @@ class BotCore {
       // Load and connect to active channels
       await this.channelManager.loadActiveChannels();
 
+      // Initialize and start detection orchestrator
+      if (this.detectionOrchestrator) {
+        try {
+          await this.detectionOrchestrator.initialize();
+          logger.info('Detection orchestrator initialized');
+        } catch (error) {
+          // Detection is optional - log warning but continue
+          logger.warn('Failed to initialize detection orchestrator', { error: error.message });
+        }
+      }
+
       this.running = true;
       logger.info('Bot started successfully');
     } catch (error) {
@@ -166,6 +188,16 @@ class BotCore {
     logger.info('Stopping bot');
 
     try {
+      // Shutdown detection orchestrator first
+      if (this.detectionOrchestrator) {
+        try {
+          await this.detectionOrchestrator.shutdown();
+          logger.debug('Detection orchestrator stopped');
+        } catch (error) {
+          logger.warn('Error stopping detection orchestrator', { error: error.message });
+        }
+      }
+
       // Disconnect all channels
       await this.channelManager.disconnectAll();
 
@@ -250,12 +282,27 @@ class BotCore {
    * @returns {Object}
    */
   getStatus() {
-    return {
+    const status = {
       running: this.running,
       authenticated: authManager.isBotAuthenticated(),
       channelCount: this.channelManager.getActiveChannelIds().length,
       channels: this.channelManager.getActiveChannels()
     };
+
+    // Include detection orchestrator status if available
+    if (this.detectionOrchestrator) {
+      status.detection = this.detectionOrchestrator.getStatus();
+    }
+
+    return status;
+  }
+
+  /**
+   * Get the detection orchestrator instance
+   * @returns {DetectionOrchestrator|null}
+   */
+  getDetectionOrchestrator() {
+    return this.detectionOrchestrator;
   }
 }
 

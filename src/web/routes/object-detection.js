@@ -4,6 +4,7 @@ const channelRepo = require('../../database/repositories/channel-repo');
 const objectDetectionRepo = require('../../database/repositories/object-detection-repo');
 const chatMembershipRepo = require('../../database/repositories/chat-membership-repo');
 const yoloClasses = require('../../constants/yolo-classes');
+const botCore = require('../../bot');
 const { createChildLogger } = require('../../utils/logger');
 
 const logger = createChildLogger('object-detection-routes');
@@ -388,7 +389,7 @@ router.post('/channels/:id/rules/:ruleId/delete', (req, res) => {
 /**
  * Start monitoring a channel
  */
-router.post('/channels/:id/start', (req, res) => {
+router.post('/channels/:id/start', async (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const channel = channelRepo.findById(channelId);
 
@@ -410,14 +411,24 @@ router.post('/channels/:id/start', (req, res) => {
     // Auto-create chat membership if needed
     ensureChatMembership(channel);
 
-    // Enable monitoring
+    // Enable monitoring in database
     objectDetectionRepo.updateConfig(config.id, { is_enabled: true });
 
-    // TODO: Notify detection orchestrator service to start monitoring
-    // This will be implemented when the orchestrator service is created
-
-    logger.info(`Started object detection monitoring for channel ${channel.twitch_username}`);
-    req.flash('success', 'Object detection monitoring started');
+    // Start monitoring via detection orchestrator
+    const orchestrator = botCore.getDetectionOrchestrator();
+    if (orchestrator && orchestrator.isReady()) {
+      try {
+        await orchestrator.startMonitoring(channelId);
+        logger.info(`Started object detection monitoring for channel ${channel.twitch_username}`);
+        req.flash('success', 'Object detection monitoring started');
+      } catch (orchError) {
+        logger.warn('Orchestrator failed to start monitoring, but config enabled', { error: orchError.message });
+        req.flash('info', 'Detection enabled in config. Monitoring will start when bot restarts.');
+      }
+    } else {
+      logger.warn('Detection orchestrator not available, config enabled only');
+      req.flash('info', 'Detection enabled in config. Monitoring will start when bot is running.');
+    }
   } catch (err) {
     logger.error('Failed to start monitoring', { error: err.message });
     req.flash('error', `Failed to start monitoring: ${err.message}`);
@@ -429,7 +440,7 @@ router.post('/channels/:id/start', (req, res) => {
 /**
  * Stop monitoring a channel
  */
-router.post('/channels/:id/stop', (req, res) => {
+router.post('/channels/:id/stop', async (req, res) => {
   const channelId = parseInt(req.params.id, 10);
   const channel = channelRepo.findById(channelId);
 
@@ -441,11 +452,18 @@ router.post('/channels/:id/stop', (req, res) => {
   try {
     const config = objectDetectionRepo.getConfig(channelId);
     if (config) {
-      // Disable monitoring
-      objectDetectionRepo.updateConfig(config.id, { is_enabled: false });
+      // Stop monitoring via detection orchestrator
+      const orchestrator = botCore.getDetectionOrchestrator();
+      if (orchestrator && orchestrator.isReady()) {
+        try {
+          await orchestrator.stopMonitoring(channelId);
+        } catch (orchError) {
+          logger.warn('Orchestrator failed to stop monitoring', { error: orchError.message });
+        }
+      }
 
-      // TODO: Notify detection orchestrator service to stop monitoring
-      // This will be implemented when the orchestrator service is created
+      // Disable monitoring in database (done by orchestrator too, but ensure it's set)
+      objectDetectionRepo.updateConfig(config.id, { is_enabled: false });
 
       logger.info(`Stopped object detection monitoring for channel ${channel.twitch_username}`);
       req.flash('success', 'Object detection monitoring stopped');
