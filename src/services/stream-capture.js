@@ -1,4 +1,5 @@
 const ffmpeg = require('fluent-ffmpeg');
+const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const { createChildLogger } = require('../utils/logger');
 
@@ -59,6 +60,89 @@ function isValidTwitchUrl(url) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if URL is a Twitch channel page URL (not an HLS stream URL)
+ * @param {string} url - URL to check
+ * @returns {boolean} True if it's a channel page URL
+ */
+function isTwitchChannelUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'twitch.tv' || parsed.hostname === 'www.twitch.tv';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Use streamlink to get the HLS stream URL for a Twitch channel
+ * @param {string} channelUrl - Twitch channel URL (e.g., https://www.twitch.tv/username)
+ * @param {string} quality - Stream quality (best, worst, or specific like 720p)
+ * @returns {Promise<string>} HLS stream URL
+ */
+async function getStreamlinkUrl(channelUrl, quality = 'best') {
+  return new Promise((resolve, reject) => {
+    logger.debug('Getting stream URL via streamlink', { channelUrl, quality });
+
+    const streamlink = spawn('streamlink', [channelUrl, quality, '--stream-url'], {
+      timeout: 30000
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    streamlink.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    streamlink.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    streamlink.on('close', (code) => {
+      if (code === 0 && stdout.trim()) {
+        const hlsUrl = stdout.trim();
+        logger.info('Got HLS stream URL via streamlink');
+        resolve(hlsUrl);
+      } else {
+        // Parse common streamlink errors
+        let errorMessage = `Streamlink exited with code ${code}`;
+
+        if (stderr.includes('No playable streams found')) {
+          errorMessage = 'Stream is offline or no playable streams found';
+        } else if (stderr.includes('Unable to find channel')) {
+          errorMessage = 'Twitch channel not found';
+        } else if (stderr.includes('error: ')) {
+          // Extract error message from streamlink output
+          const match = stderr.match(/error: (.+)/i);
+          if (match) {
+            errorMessage = match[1].trim();
+          }
+        } else if (stderr.trim()) {
+          errorMessage = stderr.trim();
+        }
+
+        logger.error('Streamlink failed', { code, stderr: stderr.trim(), stdout: stdout.trim() });
+        reject(new Error(errorMessage));
+      }
+    });
+
+    streamlink.on('error', (error) => {
+      if (error.code === 'ENOENT') {
+        logger.error('Streamlink not found - please install streamlink');
+        reject(new Error('Streamlink is not installed. Install with: pip install streamlink'));
+      } else {
+        logger.error('Streamlink spawn error', { error: error.message });
+        reject(error);
+      }
+    });
+  });
 }
 
 /**
@@ -270,6 +354,20 @@ class StreamCapture extends EventEmitter {
     this._status = StreamStatus.CONNECTING;
     logger.info('Connecting to stream', { url: this._sanitizeUrlForLog(this.streamUrl) });
 
+    // If this is a Twitch channel URL, resolve it to an HLS URL first
+    let effectiveUrl = this.streamUrl;
+    if (isTwitchChannelUrl(this.streamUrl)) {
+      try {
+        logger.info('Resolving Twitch channel URL via streamlink');
+        effectiveUrl = await getStreamlinkUrl(this.streamUrl, 'best');
+        logger.info('Resolved HLS stream URL', { url: this._sanitizeUrlForLog(effectiveUrl) });
+      } catch (error) {
+        this._status = StreamStatus.ERROR;
+        this._handleError(error);
+        throw error;
+      }
+    }
+
     return new Promise((resolve, reject) => {
       // Set connection timeout
       this._connectionTimeoutId = setTimeout(() => {
@@ -279,7 +377,7 @@ class StreamCapture extends EventEmitter {
       }, this.options.connectionTimeoutMs);
 
       try {
-        this._startFfmpeg(resolve, reject);
+        this._startFfmpeg(effectiveUrl, resolve, reject);
       } catch (error) {
         this._clearTimeouts();
         this._handleError(error);
@@ -290,11 +388,12 @@ class StreamCapture extends EventEmitter {
 
   /**
    * Start the FFmpeg process for frame extraction
+   * @param {string} streamUrl - HLS stream URL to capture from
    * @param {Function} resolve - Promise resolve function
    * @param {Function} reject - Promise reject function
    * @private
    */
-  _startFfmpeg(resolve, reject) {
+  _startFfmpeg(streamUrl, resolve, reject) {
     // Calculate frame rate from interval
     const frameRate = 1000 / this.options.frameIntervalMs;
 
@@ -302,7 +401,7 @@ class StreamCapture extends EventEmitter {
     let currentFrameData = [];
     let hasConnected = false;
 
-    this._ffmpegProcess = ffmpeg(this.streamUrl)
+    this._ffmpegProcess = ffmpeg(streamUrl)
       // Input options for HLS streams
       .inputOptions([
         '-re', // Read at native frame rate
@@ -560,5 +659,7 @@ module.exports = {
   StreamCapture,
   StreamStatus,
   isValidTwitchUrl,
+  isTwitchChannelUrl,
+  getStreamlinkUrl,
   DEFAULTS
 };

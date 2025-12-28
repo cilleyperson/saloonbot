@@ -544,11 +544,15 @@ Saloon Bot includes an experimental YOLO-based object detection feature that can
 ### Prerequisites
 
 - **FFmpeg** - Required for stream capture (`ffmpeg -version` to verify)
+- **Streamlink** - Required to extract HLS stream URLs from Twitch (`pip install streamlink`)
 - **YOLO Model** - Downloaded automatically via script
 
 ### Setup
 
 ```bash
+# Install streamlink (Python required)
+pip install streamlink
+
 # Download the YOLO model (YOLOv8n - ~6MB)
 node scripts/download-yolo-model.js
 
@@ -557,10 +561,11 @@ node scripts/download-yolo-model.js
 
 ### How It Works
 
-1. **Stream Capture** - FFmpeg captures frames from live Twitch streams via HLS
-2. **Object Detection** - YOLOv8 processes frames using ONNX Runtime
-3. **Event Logging** - Detections are logged to the database with timestamps
-4. **Web Dashboard** - View detection status and logs in the admin interface
+1. **Stream URL Resolution** - Streamlink extracts the HLS stream URL from Twitch
+2. **Stream Capture** - FFmpeg captures frames from the HLS stream
+3. **Object Detection** - YOLOv8 processes frames using ONNX Runtime
+4. **Event Logging** - Detections are logged to the database with timestamps
+5. **Web Dashboard** - View detection status and logs in the admin interface
 
 ### Detection Classes
 
@@ -714,10 +719,12 @@ twitch-saloonbot/
 - Backup codes are single-use and cannot be regenerated without disabling 2FA
 
 **Object detection not working**
+- Ensure Streamlink is installed (`pip install streamlink`)
 - Ensure FFmpeg is installed on your system (`ffmpeg -version`)
 - Run `node scripts/download-yolo-model.js` to download the YOLO model
 - Check that the channel is live (detection only works on live streams)
 - Verify ONNX Runtime is installed (`npm install onnxruntime-node`)
+- Check logs for "Stream is offline" or "Streamlink is not installed" errors
 
 ### Logs
 
