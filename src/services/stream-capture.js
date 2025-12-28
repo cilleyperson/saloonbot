@@ -404,20 +404,18 @@ class StreamCapture extends EventEmitter {
     this._ffmpegProcess = ffmpeg(streamUrl)
       // Input options for HLS streams
       .inputOptions([
-        '-re', // Read at native frame rate
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5'
       ])
-      // Output options for JPEG frames
+      // Output format for piping JPEG frames
+      .format('image2pipe')
+      .videoCodec('mjpeg')
       .outputOptions([
         '-vf', `fps=${frameRate}`, // Set frame rate
         '-q:v', String(this.options.frameQuality), // JPEG quality
-        '-f', 'image2pipe', // Output as pipe
-        '-vcodec', 'mjpeg', // Output JPEG frames
         '-an' // No audio
       ])
-      .output('pipe:1') // Output to stdout
       .on('start', (commandLine) => {
         logger.debug('FFmpeg started', { command: commandLine });
       })
