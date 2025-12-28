@@ -66,8 +66,8 @@ class AuthManager {
       this.botTwitchId = botAuth.twitch_user_id;
       this.botUsername = botAuth.bot_username;
 
-      // Parse scopes - stored as space-separated string in database
-      const scopeArray = botAuth.scopes ? botAuth.scopes.split(' ') : [];
+      // Scopes are already parsed as array by auth-repo
+      const scopeArray = Array.isArray(botAuth.scopes) ? botAuth.scopes : [];
 
       this.authProvider.addUser(botAuth.twitch_user_id, {
         accessToken: botAuth.access_token,
