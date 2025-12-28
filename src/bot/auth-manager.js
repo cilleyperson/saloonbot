@@ -66,15 +66,18 @@ class AuthManager {
       this.botTwitchId = botAuth.twitch_user_id;
       this.botUsername = botAuth.bot_username;
 
+      // Parse scopes - stored as space-separated string in database
+      const scopeArray = botAuth.scopes ? botAuth.scopes.split(' ') : [];
+
       this.authProvider.addUser(botAuth.twitch_user_id, {
         accessToken: botAuth.access_token,
         refreshToken: botAuth.refresh_token,
-        scope: botAuth.scopes,
+        scope: scopeArray,
         expiresIn: 0, // Will trigger refresh check
         obtainmentTimestamp: Date.now()
       }, ['chat']); // Bot needs chat intents
 
-      logger.info(`Loaded bot token for ${botAuth.bot_username} (Twitch ID: ${botAuth.twitch_user_id})`);
+      logger.info(`Loaded bot token for ${botAuth.bot_username} (Twitch ID: ${botAuth.twitch_user_id})`, { scopes: scopeArray });
       return true;
     } else {
       // Legacy bot auth without Twitch ID
