@@ -12,21 +12,27 @@ const fs = require('fs');
 const path = require('path');
 
 // Model configurations
+// Models hosted on HuggingFace: https://huggingface.co/unity/inference-engine-yolo
 const MODELS = {
   yolov8n: {
-    url: 'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx',
-    size: '6.9 MB',
+    url: 'https://huggingface.co/unity/inference-engine-yolo/resolve/main/models/yolov8n.onnx',
+    size: '6.4 MB',
     description: 'Nano - Fastest, smallest (recommended)'
   },
   yolov8s: {
-    url: 'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8s.onnx',
+    url: 'https://huggingface.co/unity/inference-engine-yolo/resolve/main/models/yolov8s.onnx',
     size: '22 MB',
     description: 'Small - Balanced speed/accuracy'
   },
-  yolov8m: {
-    url: 'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8m.onnx',
-    size: '52 MB',
-    description: 'Medium - Higher accuracy, slower'
+  yolo11n: {
+    url: 'https://huggingface.co/unity/inference-engine-yolo/resolve/main/models/yolo11n.onnx',
+    size: '5.4 MB',
+    description: 'YOLO11 Nano - Latest architecture'
+  },
+  yolo11s: {
+    url: 'https://huggingface.co/unity/inference-engine-yolo/resolve/main/models/yolo11s.onnx',
+    size: '19 MB',
+    description: 'YOLO11 Small - Latest with better accuracy'
   }
 };
 
@@ -152,13 +158,19 @@ async function main() {
   console.log(`Destination: ${destPath}\n`);
 
   let lastPercent = -1;
+  const isTTY = process.stdout.isTTY;
 
   try {
     await downloadFile(model.url, destPath, (percent, downloaded, total) => {
       if (percent !== lastPercent) {
-        process.stdout.clearLine(0);
-        process.stdout.cursorTo(0);
-        process.stdout.write(`Progress: ${percent}% (${formatBytes(downloaded)} / ${formatBytes(total)})`);
+        if (isTTY && process.stdout.clearLine) {
+          process.stdout.clearLine(0);
+          process.stdout.cursorTo(0);
+          process.stdout.write(`Progress: ${percent}% (${formatBytes(downloaded)} / ${formatBytes(total)})`);
+        } else if (percent % 10 === 0) {
+          // Non-TTY: print every 10%
+          console.log(`Progress: ${percent}% (${formatBytes(downloaded)} / ${formatBytes(total)})`);
+        }
         lastPercent = percent;
       }
     });
