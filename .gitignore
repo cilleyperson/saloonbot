@@ -47,3 +47,9 @@ certs/
 # Exclude general docs but include security reviews and feature plans
 /docs/*
 !/docs/sec-review-*/
+!/docs/feature-plan-*/
+
+# YOLO model files (large binaries)
+models/*.onnx
+models/*.pt
+models/*.pth

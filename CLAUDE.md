@@ -37,6 +37,10 @@ npm run create-admin
 node scripts/migrate-tokens.js
 node scripts/migrate-tokens.js --dry-run  # Preview only
 
+# Download YOLO model for object detection
+node scripts/download-yolo-model.js
+node scripts/download-yolo-model.js --model yolov8s  # Larger model
+
 # Docker (development)
 cd docker && docker compose -f docker-compose.dev.yml up -d
 
@@ -73,7 +77,7 @@ twitch-saloonbot/
 │   ├── database/
 │   │   ├── index.js           # SQLite connection (better-sqlite3)
 │   │   ├── schema.js          # Table creation and migrations
-│   │   └── repositories/      # Data access layer (13 repos)
+│   │   └── repositories/      # Data access layer (14 repos)
 │   │       ├── admin-user-repo.js    # Admin user authentication
 │   │       ├── auth-repo.js          # OAuth tokens (encrypted)
 │   │       ├── channel-repo.js
@@ -83,17 +87,22 @@ twitch-saloonbot/
 │   │       ├── counter-repo.js
 │   │       ├── dictionary-repo.js
 │   │       ├── magic-8ball-repo.js
+│   │       ├── object-detection-repo.js   # Object detection configs and logs
 │   │       ├── predefined-settings-repo.js
 │   │       ├── rps-stats-repo.js
 │   │       ├── settings-repo.js
 │   │       └── trivia-stats-repo.js       # Trivia game statistics
 │   │
-│   ├── services/               # External API integrations (5 services)
+│   ├── services/               # Services (9 total: 5 API + 4 detection)
 │   │   ├── advice-api.js      # zenquotes.io integration (quotes/advice)
 │   │   ├── dadjoke-api.js     # icanhazdadjoke.com integration
 │   │   ├── dictionary-api.js  # Free Dictionary API integration
 │   │   ├── randomfact-api.js  # uselessfacts.jsph.pl integration
-│   │   └── trivia-api.js      # Open Trivia Database integration
+│   │   ├── trivia-api.js      # Open Trivia Database integration
+│   │   ├── stream-capture.js  # HLS stream frame capture (FFmpeg)
+│   │   ├── yolo-detection.js  # YOLOv8 ONNX inference service
+│   │   ├── detection-orchestrator.js  # Multi-channel detection manager
+│   │   └── detection-pipeline.js      # Stream→Detection→Chat pipeline
 │   │
 │   ├── utils/
 │   │   ├── api-client.js      # External API wrapper with timeout
@@ -107,7 +116,7 @@ twitch-saloonbot/
 │       ├── index.js           # Express app setup with security middleware
 │       ├── middleware/        # Express middleware
 │       │   └── auth.js        # Authentication (requireAuth, setLocals)
-│       ├── routes/            # HTTP route handlers (9 routes)
+│       ├── routes/            # HTTP route handlers (10 routes)
 │       │   ├── auth.js        # Twitch OAuth routes
 │       │   ├── channels.js
 │       │   ├── chat-memberships.js
@@ -115,6 +124,7 @@ twitch-saloonbot/
 │       │   ├── counters.js
 │       │   ├── dashboard.js
 │       │   ├── login.js       # Admin login/logout with 2FA
+│       │   ├── object-detection.js  # Stream detection management
 │       │   ├── predefined-commands.js
 │       │   └── two-factor.js  # 2FA setup and management
 │       └── views/             # EJS templates for admin UI
@@ -131,9 +141,13 @@ twitch-saloonbot/
 │           ├── chat-memberships/
 │           ├── commands/
 │           ├── counters/
+│           ├── object-detection/  # Detection admin views
+│           │   ├── index.ejs      # Overview and status
+│           │   ├── channel.ejs    # Per-channel config
+│           │   └── logs.ejs       # Detection history
 │           └── predefined-commands/
 │
-├── migrations/                # Database migrations (8 migrations)
+├── migrations/                # Database migrations (10 migrations)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
@@ -141,7 +155,9 @@ twitch-saloonbot/
 │   ├── 005_emoji_support.sql
 │   ├── 006_trivia_stats.sql
 │   ├── 007_admin_users.sql    # Admin authentication
-│   └── 008_two_factor_auth.sql # TOTP and backup codes
+│   ├── 008_two_factor_auth.sql # TOTP and backup codes
+│   ├── 009_cleanup_legacy.sql # Legacy table cleanup
+│   └── 010_object_detection.sql # Stream object detection
 │
 ├── docker/                    # Docker configuration
 │   ├── Dockerfile            # Non-root user, security hardened
@@ -151,7 +167,12 @@ twitch-saloonbot/
 ├── scripts/                   # Utility scripts
 │   ├── generate-certs.sh     # Generate self-signed SSL certificates
 │   ├── create-admin.js       # Create admin user (interactive)
-│   └── migrate-tokens.js     # Encrypt existing OAuth tokens
+│   ├── migrate-tokens.js     # Encrypt existing OAuth tokens
+│   └── download-yolo-model.js # Download YOLOv8 ONNX model
+│
+├── models/                    # ML model files (gitignored)
+│   ├── README.md             # Model download instructions
+│   └── yolov8n.onnx          # YOLOv8 nano model (download required)
 │
 ├── public/                    # Static web assets
 │   └── css/style.css
@@ -193,6 +214,42 @@ The project uses **Twurple** (https://twurple.js.org/), the modern Twitch API li
 - **EventHandler** (`src/bot/event-handler.js`) - Routes events to appropriate handlers
 - **CommandHandler** (`src/bot/handlers/command-handler.js`) - Custom commands and counters
 - **PredefinedCommandHandler** (`src/bot/handlers/predefined-command-handler.js`) - Built-in commands
+- **DetectionOrchestrator** (`src/services/detection-orchestrator.js`) - Multi-channel detection manager
+- **DetectionPipeline** (`src/services/detection-pipeline.js`) - Stream→Detection→Chat pipeline
+
+### Object Detection Architecture
+
+Real-time stream object detection using YOLOv8 for automated chat messages when objects are detected.
+
+**Components:**
+- **StreamCapture** (`src/services/stream-capture.js`) - Captures frames from Twitch HLS streams using FFmpeg
+- **YOLODetection** (`src/services/yolo-detection.js`) - Runs YOLOv8 ONNX model inference via onnxruntime-node
+- **DetectionOrchestrator** - Singleton managing detection pipelines across multiple channels
+- **DetectionPipeline** - EventEmitter connecting stream capture → YOLO detection → chat messages
+
+**Flow:**
+1. Admin enables detection for a channel and configures detection rules
+2. When stream goes live, orchestrator starts a DetectionPipeline for that channel
+3. StreamCapture extracts frames from the Twitch HLS stream at configured intervals
+4. YOLODetection runs inference on each frame, returning detected objects with confidence scores
+5. Pipeline checks detection rules (object type, min confidence, message template)
+6. If rules match and cooldown has passed, bot sends configured message to chat
+7. Detection event is logged to database for analytics
+
+**Configuration Options:**
+- `is_enabled` - Enable/disable detection for channel
+- `frame_interval_ms` - How often to capture frames (default: 5000ms)
+- `min_confidence` - Minimum confidence threshold (default: 0.5)
+- Detection rules: object class, confidence threshold, chat message template, cooldown
+
+**Database Tables:**
+- `object_detection_configs` - Per-channel detection settings
+- `object_detection_rules` - Object-specific detection rules with templates
+- `object_detection_logs` - Detection event history for analytics
+
+**Requirements:**
+- FFmpeg installed on system (for stream capture)
+- YOLOv8 ONNX model file in `models/` directory (download with `node scripts/download-yolo-model.js`)
 
 ### Security Architecture
 
@@ -228,7 +285,7 @@ The application includes comprehensive security features:
 
 ### Database
 
-SQLite database with better-sqlite3. Current schema version: 8
+SQLite database with better-sqlite3. Current schema version: 10
 
 **Core Tables:**
 - `schema_version` - Tracks applied migrations
@@ -256,6 +313,11 @@ SQLite database with better-sqlite3. Current schema version: 8
 - `rps_user_stats` - Per-user per-channel RPS statistics
 - `trivia_user_stats` - Per-user per-channel trivia statistics
 
+**Object Detection Tables:**
+- `object_detection_configs` - Per-channel detection settings (enabled, frame interval, confidence)
+- `object_detection_rules` - Detection rules with object class, threshold, and message template
+- `object_detection_logs` - Detection event history (channel, object, confidence, timestamp)
+
 ### Admin Web Interface
 
 Express.js server with EJS templates and comprehensive security:
@@ -273,6 +335,7 @@ Express.js server with EJS templates and comprehensive security:
 - RPS leaderboard and stats
 - Trivia leaderboard and stats
 - Account security settings (2FA management, backup codes)
+- Object detection management (per-channel config, rules, detection logs)
 
 ## Environment Configuration
 
@@ -357,10 +420,13 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
   "express": "^5.2.1",
   "express-rate-limit": "^8.2.1",
   "express-session": "^1.18.2",
+  "fluent-ffmpeg": "^2.1.3",
   "helmet": "^8.1.0",
   "multer": "^2.0.2",
+  "onnxruntime-node": "^1.20.1",
   "otpauth": "^9.4.1",
   "qrcode": "^1.5.4",
+  "sharp": "^0.33.5",
   "winston": "^3.19.0"
 }
 ```
