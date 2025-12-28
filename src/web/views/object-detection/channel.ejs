@@ -1,0 +1,369 @@
+<%- include('../layout', { body: `
+<div class="page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+    const username = escapeHtml(channel.twitch_username);
+    const streamUrl = config.stream_url ? escapeHtml(config.stream_url) : '';
+
+    // YOLO classes organized by category
+    const yoloClasses = {
+      'People': ['person'],
+      'Vehicles': ['bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat'],
+      'Animals': ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'],
+      'Accessories': ['backpack', 'umbrella', 'handbag', 'tie', 'suitcase'],
+      'Sports': ['frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket'],
+      'Kitchen': ['bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl'],
+      'Food': ['banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake'],
+      'Furniture': ['chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet'],
+      'Electronics': ['tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone'],
+      'Appliances': ['microwave', 'oven', 'toaster', 'sink', 'refrigerator'],
+      'Indoor': ['book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'],
+      'Outdoor': ['traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench']
+    };
+
+    return `
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/detection" class="back-link">&larr; Back to Detection</a>
+      <h1 class="page-title">Object Detection Settings</h1>
+      <p class="page-subtitle">${displayName}</p>
+    </div>
+    <div class="page-header-actions">
+      <a href="/detection/channels/${channel.id}/logs" class="btn btn-secondary">View Logs</a>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <!-- Configuration Section -->
+    <form action="/detection/channels/${channel.id}/config" method="POST">
+      <input type="hidden" name="_csrf" value="${csrfToken}">
+
+      <div class="card mb-6">
+        <div class="card-header">
+          <h3 class="card-title">Detection Configuration</h3>
+        </div>
+        <div class="card-body">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label for="frame_interval_ms" class="form-label">Frame Interval (ms)</label>
+              <input type="range" id="frame_interval_slider" min="500" max="10000" step="100"
+                     value="${config.frame_interval_ms || 1000}"
+                     oninput="document.getElementById('frame_interval_ms').value = this.value; document.getElementById('frame_interval_display').textContent = this.value + 'ms';">
+              <div class="input-group mt-2">
+                <input type="number" id="frame_interval_ms" name="frame_interval_ms"
+                       value="${config.frame_interval_ms || 1000}"
+                       min="500" max="10000" step="100" class="form-input"
+                       oninput="document.getElementById('frame_interval_slider').value = this.value; document.getElementById('frame_interval_display').textContent = this.value + 'ms';">
+                <span class="input-suffix" id="frame_interval_display">${config.frame_interval_ms || 1000}ms</span>
+              </div>
+              <p class="form-help">How often to capture and analyze stream frames (500-10000ms)</p>
+            </div>
+
+            <div class="form-group">
+              <label for="cooldown_seconds" class="form-label">Message Cooldown (seconds)</label>
+              <input type="number" id="cooldown_seconds" name="cooldown_seconds"
+                     value="${config.cooldown_seconds || 30}"
+                     min="0" max="3600" class="form-input">
+              <p class="form-help">Minimum time between detection messages per object class</p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="max_concurrent_detections" class="form-label">Max Concurrent Detections</label>
+            <input type="number" id="max_concurrent_detections" name="max_concurrent_detections"
+                   value="${config.max_concurrent_detections || 1}"
+                   min="1" max="10" class="form-input">
+            <p class="form-help">Maximum number of concurrent detection processes</p>
+          </div>
+
+          <div class="form-group">
+            <label for="stream_url" class="form-label">Custom Stream URL (Optional)</label>
+            <input type="url" id="stream_url" name="stream_url"
+                   value="${streamUrl}"
+                   class="form-input"
+                   placeholder="https://...">
+            <p class="form-help">Leave empty to use the default Twitch stream. Use a custom URL for alternative stream sources.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions mb-6">
+        <button type="submit" class="btn btn-primary">Save Configuration</button>
+      </div>
+    </form>
+
+    <!-- Detection Rules Section -->
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Detection Rules</h3>
+        <button type="button" class="btn btn-primary btn-sm" onclick="toggleAddRuleForm()">Add Rule</button>
+      </div>
+
+      <!-- Add Rule Form (hidden by default) -->
+      <div id="add-rule-form" class="card-body" style="display: none; border-bottom: 1px solid var(--border-primary);">
+        <form action="/detection/channels/${channel.id}/rules" method="POST">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+
+          <div class="form-group">
+            <label for="object_class" class="form-label">Object Class</label>
+            <select id="object_class" name="object_class" class="form-select" required>
+              <option value="">-- Select an object --</option>
+              ${Object.entries(yoloClasses).map(([category, classes]) => `
+              <optgroup label="${category}">
+                ${classes.map(cls => `<option value="${cls}">${cls}</option>`).join('')}
+              </optgroup>
+              `).join('')}
+            </select>
+            <p class="form-help">Select the object type to detect from YOLO's 80 supported classes</p>
+          </div>
+
+          <div class="form-group">
+            <label for="min_confidence" class="form-label">Minimum Confidence</label>
+            <div class="input-group">
+              <input type="range" id="confidence_slider" min="0" max="100" step="1" value="50"
+                     oninput="document.getElementById('min_confidence').value = this.value / 100; document.getElementById('confidence_display').textContent = this.value + '%';"
+                     style="flex: 1;">
+              <input type="number" id="min_confidence" name="min_confidence"
+                     value="0.5" min="0" max="1" step="0.01" class="form-input" style="width: 80px;"
+                     oninput="document.getElementById('confidence_slider').value = this.value * 100; document.getElementById('confidence_display').textContent = Math.round(this.value * 100) + '%';">
+              <span class="input-suffix" id="confidence_display">50%</span>
+            </div>
+            <p class="form-help">Minimum confidence level required to trigger (0-1)</p>
+          </div>
+
+          <div class="form-group">
+            <label for="message_template" class="form-label">Message Template</label>
+            <textarea id="message_template" name="message_template" rows="3" class="form-textarea"
+                      placeholder="A {object} was detected with {confidence_pct}% confidence!"></textarea>
+            <p class="form-help">
+              Available variables: <code>{object}</code> <code>{confidence}</code> <code>{confidence_pct}</code> <code>{streamer}</code>
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label class="toggle">
+              <input type="checkbox" name="is_enabled" checked>
+              <span class="toggle-slider"></span>
+              <span>Enable this rule</span>
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add Rule</button>
+            <button type="button" class="btn btn-secondary" onclick="toggleAddRuleForm()">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Rules Table -->
+      <div class="card-body">
+        ${rules && rules.length > 0 ? `
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Object</th>
+                <th>Confidence</th>
+                <th>Message Template</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rules.map(rule => {
+                const ruleClass = escapeHtml(rule.object_class);
+                const ruleMessage = escapeHtml(rule.message_template || '');
+                const confidencePct = Math.round(rule.min_confidence * 100);
+                return `
+              <tr class="${rule.is_enabled ? '' : 'inactive'}">
+                <td>
+                  <code>${ruleClass}</code>
+                </td>
+                <td>${confidencePct}%</td>
+                <td class="text-truncate" style="max-width: 300px;" title="${ruleMessage}">${ruleMessage || '<em>No template</em>'}</td>
+                <td>
+                  <span class="badge ${rule.is_enabled ? 'badge-success' : 'badge-error'}">
+                    ${rule.is_enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="editRule(${rule.id})">Edit</button>
+                    <form action="/detection/channels/${channel.id}/rules/${rule.id}/delete" method="POST" class="inline-form"
+                          onsubmit="return confirm('Delete this detection rule?');">
+                      <input type="hidden" name="_csrf" value="${csrfToken}">
+                      <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : `
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <h3>No detection rules configured</h3>
+          <p>Add a detection rule to start monitoring the stream for specific objects.</p>
+        </div>
+        `}
+      </div>
+    </div>
+
+    <!-- Variable Reference -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Template Variables Reference</h3>
+      </div>
+      <div class="card-body">
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Description</th>
+                <th>Example</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>{object}</code></td>
+                <td>The detected object class name</td>
+                <td>cat</td>
+              </tr>
+              <tr>
+                <td><code>{confidence}</code></td>
+                <td>Detection confidence as decimal (0-1)</td>
+                <td>0.87</td>
+              </tr>
+              <tr>
+                <td><code>{confidence_pct}</code></td>
+                <td>Detection confidence as percentage</td>
+                <td>87</td>
+              </tr>
+              <tr>
+                <td><code>{count}</code></td>
+                <td>Number of instances detected</td>
+                <td>2</td>
+              </tr>
+              <tr>
+                <td><code>{streamer}</code></td>
+                <td>The channel/streamer name</td>
+                <td>${username}</td>
+              </tr>
+              <tr>
+                <td><code>{time}</code></td>
+                <td>Current time (HH:MM format)</td>
+                <td>14:32</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Rule Modal -->
+  <div id="edit-rule-modal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Detection Rule</h3>
+        <button type="button" class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <form id="edit-rule-form" method="POST">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Object Class</label>
+            <input type="text" id="edit_object_class" class="form-input" readonly>
+          </div>
+
+          <div class="form-group">
+            <label for="edit_min_confidence" class="form-label">Minimum Confidence</label>
+            <div class="input-group">
+              <input type="range" id="edit_confidence_slider" min="0" max="100" step="1" value="50"
+                     oninput="document.getElementById('edit_min_confidence').value = this.value / 100; document.getElementById('edit_confidence_display').textContent = this.value + '%';">
+              <input type="number" id="edit_min_confidence" name="min_confidence"
+                     value="0.5" min="0" max="1" step="0.01" class="form-input" style="width: 80px;"
+                     oninput="document.getElementById('edit_confidence_slider').value = this.value * 100; document.getElementById('edit_confidence_display').textContent = Math.round(this.value * 100) + '%';">
+              <span class="input-suffix" id="edit_confidence_display">50%</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="edit_message_template" class="form-label">Message Template</label>
+            <textarea id="edit_message_template" name="message_template" rows="3" class="form-textarea" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="toggle">
+              <input type="checkbox" id="edit_is_enabled" name="is_enabled">
+              <span class="toggle-slider"></span>
+              <span>Enable this rule</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Store rules data for editing
+    var rulesData = ${JSON.stringify(rules || [])};
+
+    function toggleAddRuleForm() {
+      var form = document.getElementById('add-rule-form');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function editRule(ruleId) {
+      var rule = rulesData.find(function(r) { return r.id === ruleId; });
+      if (!rule) return;
+
+      document.getElementById('edit_object_class').value = rule.object_class;
+      document.getElementById('edit_min_confidence').value = rule.min_confidence;
+      document.getElementById('edit_confidence_slider').value = Math.round(rule.min_confidence * 100);
+      document.getElementById('edit_confidence_display').textContent = Math.round(rule.min_confidence * 100) + '%';
+      document.getElementById('edit_message_template').value = rule.message_template || '';
+      document.getElementById('edit_is_enabled').checked = rule.is_enabled;
+      document.getElementById('edit-rule-form').action = '/detection/channels/${channel.id}/rules/' + ruleId + '/update';
+
+      document.getElementById('edit-rule-modal').classList.add('active');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-rule-modal').classList.remove('active');
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('edit-rule-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeEditModal();
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeEditModal();
+    });
+  </script>
+    `;
+  })()}
+</div>
+`, activePage: 'object-detection', channel: channel }) %>

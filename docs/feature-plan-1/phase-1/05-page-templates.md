@@ -1,15 +1,39 @@
+# Task 05: Page Templates
+
+## Task ID
+`P1-T05`
+
+## Prerequisites
+- Task 01 (CSS Foundation) completed
+- Task 02 (Layout System) completed
+- Task 03 (Component Library) completed
+- Task 04 (Theme System) completed
+
+## Objective
+Update all EJS templates to use the new layout structure, component classes, and responsive design patterns.
+
+## Agent Type
+`frontend-mobile-development:frontend-developer`
+
+## Security Requirements
+- Maintain all existing CSRF token implementations
+- Keep escapeHtml functions in all templates
+- Preserve XSS protections in dynamic content
+- Ensure authentication checks remain in place
+
+## Implementation Steps
+
+### Step 1: Update Main Layout Template
+
+Update `src/web/views/layout.ejs`:
+
+```ejs
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <link rel="icon" href="/images/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
-  <meta property="og:image" content="/images/saloon-bot-og-1200x630.png">
-  <meta name="twitter:card" content="summary_large_image">
   <title><%= typeof title !== 'undefined' ? title + ' - Saloon Bot' : 'Saloon Bot' %></title>
   <link rel="stylesheet" href="/css/style.css">
   <script>
@@ -34,7 +58,6 @@
           </svg>
         </button>
         <a href="/" class="header-logo">
-          <img src="/images/saloon-bot-logo-128.png" alt="Saloon Bot Logo">
           <span>Saloon Bot</span>
         </a>
       </div>
@@ -77,28 +100,6 @@
             <span>Dashboard</span>
           </a>
 
-          <a href="/channels" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'channels' ? 'active' : '' %>">
-            <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.5 1a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-1.5 1.5H14v-6h.5z"/>
-            </svg>
-            <span>Channels</span>
-          </a>
-
-          <a href="/detection" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'object-detection' ? 'active' : '' %>">
-            <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V4H6z"/>
-              <path d="M10 8a2 2 0 100 4 2 2 0 000-4z"/>
-            </svg>
-            <span>Detection</span>
-          </a>
-
-          <a href="/account/security" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'security' ? 'active' : '' %>">
-            <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            <span>Security</span>
-          </a>
-
           <% if (typeof channel !== 'undefined' && channel) { %>
           <div class="sidebar-section">
             <span class="sidebar-section-title"><%= channel.display_name || channel.twitch_username %></span>
@@ -120,21 +121,21 @@
 
             <a href="/channels/<%= channel.id %>/counters" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'counters' ? 'active' : '' %>">
               <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/>
               </svg>
               <span>Counters</span>
             </a>
 
             <a href="/channels/<%= channel.id %>/predefined" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'predefined' ? 'active' : '' %>">
               <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                <path d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v10H5V5z"/>
               </svg>
               <span>Predefined</span>
             </a>
 
             <a href="/channels/<%= channel.id %>/chat-memberships" class="sidebar-link <%= typeof activePage !== 'undefined' && activePage === 'memberships' ? 'active' : '' %>">
               <svg class="sidebar-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
               </svg>
               <span>Memberships</span>
             </a>
@@ -173,6 +174,232 @@
   <script src="/js/navigation.js"></script>
   <script src="/js/theme.js"></script>
   <script src="/js/toast.js"></script>
-  <script src="/js/app.js"></script>
 </body>
 </html>
+```
+
+### Step 2: Update Each Page Template
+
+Update each template to use the new component classes. The key changes for each template:
+
+1. Replace old class names with new component classes
+2. Add `activePage` variable for sidebar highlighting
+3. Use new card, table, form, and button classes
+4. Ensure CSRF tokens remain in place
+5. Keep escapeHtml functions for XSS protection
+
+**Example pattern for list pages:**
+```ejs
+<%- include('../layout', { body: `
+<div class="page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    return `
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/channels/${channel.id}" class="back-link">&larr; Back to Channel</a>
+      <h1 class="page-title">Page Title</h1>
+    </div>
+    <div class="page-header-actions">
+      <a href="/add" class="btn btn-primary">Add Item</a>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <!-- Table content -->
+        </table>
+      </div>
+    </div>
+  </div>
+    `;
+  })()}
+</div>
+`, activePage: 'pagename' }) %>
+```
+
+### Step 3: Files to Update
+
+Update all templates in the following directories:
+- `src/web/views/dashboard.ejs`
+- `src/web/views/login.ejs`
+- `src/web/views/error.ejs`
+- `src/web/views/channels/*.ejs`
+- `src/web/views/commands/*.ejs`
+- `src/web/views/counters/*.ejs`
+- `src/web/views/chat-memberships/*.ejs`
+- `src/web/views/predefined-commands/*.ejs`
+
+### Step 4: Update Login Page (No Sidebar)
+
+The login page should not show the sidebar. Update to use a centered card layout:
+
+```ejs
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Saloon Bot</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    (function() {
+      var theme = localStorage.getItem('saloonbot-theme');
+      if (!theme) {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>Saloon Bot</h1>
+        <p>Admin Dashboard</p>
+      </div>
+
+      <% if (typeof flash !== 'undefined' && flash.error) { %>
+        <div class="alert alert-error"><%= flash.error %></div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-body">
+          <form method="POST" action="/auth/login">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="form-group">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" id="username" name="username" class="form-input" required autofocus>
+            </div>
+
+            <div class="form-group">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" id="password" name="password" class="form-input" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Login</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/theme.js"></script>
+</body>
+</html>
+```
+
+Add login page styles to CSS:
+```css
+/* Login Page */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+}
+
+.login-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.login-header h1 {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--accent-primary);
+  margin-bottom: var(--space-2);
+}
+
+.login-header p {
+  color: var(--text-secondary);
+}
+```
+
+## Testing Requirements
+
+### Manual Testing
+1. Test each page on desktop, tablet, and mobile
+2. Verify sidebar navigation works correctly
+3. Verify active page highlighting
+4. Test all forms submit correctly with CSRF
+5. Verify flash messages display correctly
+6. Test theme toggle on all pages
+7. Verify responsive breakpoints work
+
+### Security Testing
+1. Verify CSRF tokens present on all forms
+2. Test XSS payloads in all input fields
+3. Verify escapeHtml functions work
+4. Confirm authentication required on protected pages
+
+### Cross-Browser Testing
+1. Chrome - all pages render correctly
+2. Firefox - all pages render correctly
+3. Safari - all pages render correctly
+4. Mobile browsers - touch interactions work
+
+## Git Commit
+
+**Files to Stage:**
+- `src/web/views/layout.ejs`
+- `src/web/views/login.ejs`
+- `src/web/views/dashboard.ejs`
+- `src/web/views/error.ejs`
+- All files in `src/web/views/channels/`
+- All files in `src/web/views/commands/`
+- All files in `src/web/views/counters/`
+- All files in `src/web/views/chat-memberships/`
+- All files in `src/web/views/predefined-commands/`
+- `public/css/style.css` (login styles)
+
+**Commit Message:**
+```
+feat(ui): update all page templates with new design system
+
+- Update layout.ejs with header, sidebar, responsive structure
+- Add theme toggle and navigation JavaScript integration
+- Update dashboard with new stats grid and cards
+- Update all channel management pages
+- Update command and counter list/form pages
+- Update predefined command pages
+- Update login page with centered card layout
+- Add sidebar navigation with active state
+- Maintain all CSRF tokens and XSS protections
+
+Security: All existing protections maintained
+Phase 1 Task 05: Page Templates
+```
+
+## Acceptance Criteria
+
+- [ ] Layout template includes header, sidebar, main content
+- [ ] All pages use new component classes
+- [ ] Sidebar shows correct active page
+- [ ] Theme toggle works on all pages
+- [ ] All forms have CSRF tokens
+- [ ] All dynamic content escaped properly
+- [ ] Login page has centered card layout
+- [ ] Flash messages display with new styles
+- [ ] All pages responsive at all breakpoints
+- [ ] Navigation JavaScript integrated
