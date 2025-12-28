@@ -195,6 +195,19 @@ class DetectionPipeline extends EventEmitter {
   }
 
   /**
+   * Get pipeline status for display
+   * @returns {Object} Status object
+   */
+  getStatus() {
+    const captureStatus = this.streamCapture ? this.streamCapture.getStatus() : 'not-initialized';
+    return {
+      running: this._running,
+      captureStatus,
+      stats: this.getStats()
+    };
+  }
+
+  /**
    * Process a frame through object detection
    * @param {Buffer} frameBuffer - JPEG frame data
    * @param {number} timestamp - Frame timestamp

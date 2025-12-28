@@ -474,7 +474,10 @@ class StreamCapture extends EventEmitter {
     if (this._reconnectCount >= this.options.reconnectAttempts) {
       logger.error('Max reconnection attempts reached');
       this._status = StreamStatus.ERROR;
+      // Emit error but don't throw - let the pipeline handle it
       this._handleError(new Error('Max reconnection attempts reached'));
+      // Clean up any remaining resources
+      this._killFfmpeg().catch(() => {});
       return;
     }
 

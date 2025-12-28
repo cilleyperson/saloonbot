@@ -59,6 +59,11 @@
                   <span class="monitoring-pulse"></span>
                   Active
                 </span>
+                ` : channel.is_pending ? `
+                <span class="badge badge-warning" title="Waiting for stream to go live">
+                  <span class="pending-icon">⏳</span>
+                  Pending
+                </span>
                 ` : `
                 <span class="badge badge-secondary">Inactive</span>
                 `}

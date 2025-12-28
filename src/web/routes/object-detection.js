@@ -91,6 +91,23 @@ function ensureChatMembership(channel) {
 router.get('/', (req, res) => {
   const channels = channelRepo.findAll();
 
+  // Get orchestrator status if available
+  const orchestrator = botCore.getDetectionOrchestrator();
+  const orchestratorStatus = orchestrator ? orchestrator.getStatus() : null;
+
+  // Build a set of actively monitoring and pending channel IDs
+  const monitoringChannelIds = new Set();
+  const pendingChannelIds = new Set();
+
+  if (orchestratorStatus) {
+    for (const monitor of orchestratorStatus.monitors || []) {
+      monitoringChannelIds.add(monitor.channelId);
+    }
+    for (const pending of orchestratorStatus.pendingChannels || []) {
+      pendingChannelIds.add(pending.channelId);
+    }
+  }
+
   // Get detection config for each channel
   const channelsWithConfig = channels.map(channel => {
     const config = objectDetectionRepo.getConfig(channel.id);
@@ -99,7 +116,8 @@ router.get('/', (req, res) => {
     return {
       ...channel,
       detection_enabled: config ? config.is_enabled : false,
-      is_monitoring: config ? config.is_enabled : false, // TODO: Check actual orchestrator status
+      is_monitoring: monitoringChannelIds.has(channel.id),
+      is_pending: pendingChannelIds.has(channel.id),
       rule_count: rules.length
     };
   });
