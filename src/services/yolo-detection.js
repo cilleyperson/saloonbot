@@ -44,6 +44,7 @@ class YOLODetector {
     this.session = null;
     this.inputName = null;
     this.outputName = null;
+    this.inputType = 'float32'; // Default, may be updated on model load
     this.isInitialized = false;
 
     logger.debug('YOLODetector created', {
@@ -91,11 +92,24 @@ class YOLODetector {
       this.inputName = this.session.inputNames[0];
       this.outputName = this.session.outputNames[0];
 
+      // Detect model input type (some models use float16 for efficiency)
+      const inputMeta = this.session.inputNames.length > 0
+        ? this.session.handler.inputMeta[this.inputName]
+        : null;
+      this.inputType = inputMeta?.dataType || 'float32';
+
+      // Map ONNX data type enum to string if needed
+      // ONNX Runtime uses: 1=float32, 10=float16
+      if (typeof this.inputType === 'number') {
+        this.inputType = this.inputType === 10 ? 'float16' : 'float32';
+      }
+
       this.isInitialized = true;
 
       logger.info('YOLO model loaded successfully', {
         inputName: this.inputName,
         outputName: this.outputName,
+        inputType: this.inputType,
         inputNames: this.session.inputNames,
         outputNames: this.session.outputNames
       });
@@ -139,7 +153,14 @@ class YOLODetector {
 
     try {
       // Create input tensor (NCHW format: batch, channels, height, width)
-      const inputTensor = new ort.Tensor('float32', tensorData, [1, 3, this.inputSize, this.inputSize]);
+      // Convert to float16 if model expects it
+      let inputTensor;
+      if (this.inputType === 'float16') {
+        const float16Data = this._float32ToFloat16(tensorData);
+        inputTensor = new ort.Tensor('float16', float16Data, [1, 3, this.inputSize, this.inputSize]);
+      } else {
+        inputTensor = new ort.Tensor('float32', tensorData, [1, 3, this.inputSize, this.inputSize]);
+      }
 
       // Run inference with timeout
       const feeds = { [this.inputName]: inputTensor };
@@ -297,6 +318,47 @@ class YOLODetector {
       originalWidth,
       originalHeight
     };
+  }
+
+  /**
+   * Convert Float32Array to Float16 (stored in Uint16Array)
+   * @param {Float32Array} float32Data - Input float32 data
+   * @returns {Uint16Array} Float16 data
+   * @private
+   */
+  _float32ToFloat16(float32Data) {
+    const float16Data = new Uint16Array(float32Data.length);
+    const floatView = new Float32Array(1);
+    const int32View = new Int32Array(floatView.buffer);
+
+    for (let i = 0; i < float32Data.length; i++) {
+      floatView[0] = float32Data[i];
+      const x = int32View[0];
+
+      // Extract components
+      const sign = (x >> 16) & 0x8000;
+      const exponent = ((x >> 23) & 0xff) - 127 + 15;
+      const mantissa = x & 0x007fffff;
+
+      if (exponent <= 0) {
+        // Denormalized number or zero
+        if (exponent < -10) {
+          float16Data[i] = sign; // Too small, becomes zero
+        } else {
+          // Denormalized
+          const m = mantissa | 0x00800000;
+          float16Data[i] = sign | (m >> (14 - exponent));
+        }
+      } else if (exponent >= 31) {
+        // Overflow to infinity
+        float16Data[i] = sign | 0x7c00;
+      } else {
+        // Normalized number
+        float16Data[i] = sign | (exponent << 10) | (mantissa >> 13);
+      }
+    }
+
+    return float16Data;
   }
 
   /**
