@@ -1,0 +1,121 @@
+<%- include('../layout', { body: `
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-content">
+      <h1 class="page-title">Object Detection</h1>
+      <p class="page-subtitle">Stream object detection and automatic chat responses</p>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="alert alert-info mb-6">
+      Object detection uses YOLO to analyze stream frames and trigger automated chat messages when specific objects are detected.
+      Configure detection rules per channel to customize behavior.
+    </div>
+
+    ${typeof channels !== 'undefined' && channels.length > 0 ? `
+    <div class="card">
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Status</th>
+              <th>Monitoring</th>
+              <th>Rules</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${channels.map(channel => {
+              const escapeHtml = (str) => {
+                if (!str) return '';
+                return String(str)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;');
+              };
+              const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+              const username = escapeHtml(channel.twitch_username);
+              const isEnabled = channel.detection_enabled;
+              const isMonitoring = channel.is_monitoring;
+              const ruleCount = channel.rule_count || 0;
+              return `
+            <tr class="${isEnabled ? '' : 'inactive'}">
+              <td>
+                <div class="text-primary font-medium">${displayName}</div>
+                <div class="text-secondary text-sm">@${username}</div>
+              </td>
+              <td>
+                <span class="badge ${isEnabled ? 'badge-success' : 'badge-error'}">
+                  ${isEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </td>
+              <td>
+                ${isMonitoring ? `
+                <span class="badge badge-info">
+                  <span class="monitoring-pulse"></span>
+                  Active
+                </span>
+                ` : `
+                <span class="badge badge-secondary">Inactive</span>
+                `}
+              </td>
+              <td>${ruleCount} rule${ruleCount !== 1 ? 's' : ''}</td>
+              <td>
+                <div class="btn-group">
+                  <a href="/channels/${channel.id}/object-detection" class="btn btn-sm">Configure</a>
+                  <form action="/channels/${channel.id}/object-detection/toggle" method="POST" class="inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit" class="btn btn-sm ${isEnabled ? 'btn-secondary' : 'btn-success'}">
+                      ${isEnabled ? 'Disable' : 'Enable'}
+                    </button>
+                  </form>
+                  <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-sm btn-secondary">Logs</a>
+                </div>
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8"/>
+            <path d="M12 17v4"/>
+          </svg>
+          <h3>No channels configured</h3>
+          <p>Add a channel first to configure object detection.</p>
+          <a href="/channels/add" class="btn btn-primary mt-4">Add Channel</a>
+        </div>
+      </div>
+    </div>
+    `}
+  </div>
+</div>
+
+<style>
+.monitoring-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+</style>
+`, activePage: 'object-detection' }) %>

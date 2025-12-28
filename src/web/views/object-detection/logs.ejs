@@ -1,0 +1,215 @@
+<%- include('../layout', { body: `
+<div class="page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const displayName = escapeHtml(channel.display_name || channel.twitch_username);
+
+    // Get unique object classes for filter dropdown
+    const objectClasses = [...new Set(logs.map(log => log.object_class))].sort();
+    const currentFilter = filter ? escapeHtml(filter) : '';
+
+    // Format timestamp for display
+    const formatTime = (timestamp) => {
+      const date = new Date(timestamp);
+      return date.toLocaleString();
+    };
+
+    return `
+  <div class="page-header">
+    <div class="page-header-content">
+      <a href="/channels/${channel.id}/object-detection" class="back-link">&larr; Back to Detection Settings</a>
+      <h1 class="page-title">Detection Logs</h1>
+      <p class="page-subtitle">${displayName}</p>
+    </div>
+    <div class="page-header-actions">
+      <form action="/channels/${channel.id}/object-detection/logs/clear" method="POST" class="inline-form"
+            onsubmit="return confirm('Clear all detection logs for this channel? This cannot be undone.');">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
+        <button type="submit" class="btn btn-danger">Clear Logs</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <!-- Stats Summary -->
+    <div class="stats-row mb-6">
+      <div class="stat-card">
+        <span class="stat-value">${stats.total_detections || 0}</span>
+        <span class="stat-label">Total Detections</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${stats.unique_objects || 0}</span>
+        <span class="stat-label">Unique Objects</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${stats.messages_sent || 0}</span>
+        <span class="stat-label">Messages Sent</span>
+      </div>
+      ${stats.most_common ? `
+      <div class="stat-card">
+        <span class="stat-value">${escapeHtml(stats.most_common)}</span>
+        <span class="stat-label">Most Common</span>
+      </div>
+      ` : ''}
+    </div>
+
+    <!-- Top Objects Breakdown -->
+    ${stats.top_objects && stats.top_objects.length > 0 ? `
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3 class="card-title">Top Detected Objects</h3>
+      </div>
+      <div class="card-body">
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+          ${stats.top_objects.slice(0, 8).map(obj => `
+          <div class="stat-card" style="padding: var(--space-3);">
+            <span class="stat-value" style="font-size: var(--text-xl);">${obj.count}</span>
+            <span class="stat-label"><code>${escapeHtml(obj.object_class)}</code></span>
+          </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- Filter -->
+    <div class="card mb-6">
+      <div class="card-body">
+        <form action="/channels/${channel.id}/object-detection/logs" method="GET" class="form-row">
+          <div class="form-group" style="flex: 1; margin-bottom: 0;">
+            <label for="filter" class="form-label">Filter by Object Class</label>
+            <select id="filter" name="filter" class="form-select" onchange="this.form.submit()">
+              <option value="">All Objects</option>
+              ${objectClasses.map(cls => `
+              <option value="${escapeHtml(cls)}" ${currentFilter === cls ? 'selected' : ''}>${escapeHtml(cls)}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="align-self: flex-end; margin-bottom: 0;">
+            ${currentFilter ? `
+            <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-secondary">Clear Filter</a>
+            ` : ''}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Logs Table -->
+    ${logs && logs.length > 0 ? `
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Recent Detections</h3>
+        <span class="badge badge-secondary">${logs.length} entries${currentFilter ? ' (filtered)' : ''}</span>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Object</th>
+              <th>Confidence</th>
+              <th>Count</th>
+              <th>Message Sent</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${logs.map(log => {
+              const objClass = escapeHtml(log.object_class);
+              const message = log.message_sent ? escapeHtml(log.message_sent) : '';
+              const timestamp = log.detected_at ? formatTime(log.detected_at) : 'Unknown';
+              const confidencePct = Math.round((log.confidence || 0) * 100);
+              return `
+            <tr>
+              <td>
+                <span class="text-secondary text-sm">${timestamp}</span>
+              </td>
+              <td>
+                <code>${objClass}</code>
+              </td>
+              <td>
+                <span class="badge ${confidencePct >= 80 ? 'badge-success' : confidencePct >= 50 ? 'badge-warning' : 'badge-secondary'}">
+                  ${confidencePct}%
+                </span>
+              </td>
+              <td>${log.count || 1}</td>
+              <td class="text-truncate" style="max-width: 400px;">
+                ${message ? `
+                <span title="${message}">${message}</span>
+                ` : `
+                <span class="text-secondary text-sm">No message (cooldown or disabled)</span>
+                `}
+              </td>
+            </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${pagination && pagination.totalPages > 1 ? `
+      <div class="card-footer">
+        <div class="pagination">
+          ${pagination.currentPage > 1 ? `
+          <a href="/channels/${channel.id}/object-detection/logs?page=${pagination.currentPage - 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">&larr; Previous</a>
+          ` : `
+          <button class="btn btn-sm btn-secondary" disabled>&larr; Previous</button>
+          `}
+          <span class="pagination-info">
+            Page ${pagination.currentPage} of ${pagination.totalPages}
+          </span>
+          ${pagination.currentPage < pagination.totalPages ? `
+          <a href="/channels/${channel.id}/object-detection/logs?page=${pagination.currentPage + 1}${currentFilter ? '&filter=' + currentFilter : ''}" class="btn btn-sm btn-secondary">Next &rarr;</a>
+          ` : `
+          <button class="btn btn-sm btn-secondary" disabled>Next &rarr;</button>
+          `}
+        </div>
+      </div>
+      ` : ''}
+    </div>
+    ` : `
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10,9 9,9 8,9"/>
+          </svg>
+          <h3>No detection logs yet</h3>
+          <p>${currentFilter ? 'No detections found for the selected filter.' : 'Detection logs will appear here once objects are detected in the stream.'}</p>
+          ${currentFilter ? `
+          <a href="/channels/${channel.id}/object-detection/logs" class="btn btn-secondary mt-4">Clear Filter</a>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+    `}
+  </div>
+
+  <style>
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+    }
+
+    .pagination-info {
+      color: var(--text-secondary);
+      font-size: var(--text-sm);
+    }
+  </style>
+    `;
+  })()}
+</div>
+`, activePage: 'object-detection', channel: channel }) %>
