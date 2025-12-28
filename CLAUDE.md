@@ -41,6 +41,9 @@ node scripts/migrate-tokens.js --dry-run  # Preview only
 node scripts/download-yolo-model.js
 node scripts/download-yolo-model.js --model yolov8s  # Larger model
 
+# Backfill Twitch user IDs for existing auth entries
+node scripts/migrate-auth-twitch-ids.js
+
 # Docker (development)
 cd docker && docker compose -f docker-compose.dev.yml up -d
 
@@ -201,15 +204,33 @@ twitch-saloonbot/
 
 The project uses **Twurple** (https://twurple.js.org/), the modern Twitch API library:
 
-- `@twurple/auth` - Authentication with RefreshingAuthProvider (automatic token refresh)
+- `@twurple/auth` - Authentication with RefreshingAuthProvider (multi-user, automatic token refresh)
 - `@twurple/api` - Twitch API client
 - `@twurple/chat` - Chat client for sending messages
 - `@twurple/eventsub-ws` - WebSocket EventSub for real-time events
 
+### Multi-User Auth Provider Architecture
+
+The bot uses a **single multi-user RefreshingAuthProvider** that manages tokens for both the bot account and all connected channels. This is critical for EventSub subscriptions to work correctly:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   AuthManager                            │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ authProvider (RefreshingAuthProvider)               ││
+│  │   ├── User 'BOT_TWITCH_ID' -> Bot tokens (chat)    ││
+│  │   ├── User 'CHANNEL_1_ID'  -> Channel 1 tokens     ││
+│  │   └── User 'CHANNEL_2_ID'  -> Channel 2 tokens     ││
+│  └─────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+```
+
+All tokens are registered with their actual **Twitch user ID** (not empty string). When EventSub creates subscriptions for a channel, it calls `getAccessTokenForUser(twitchId)` which finds the correct token in the shared provider.
+
 ### Key Classes
 
 - **BotCore** (`src/bot/index.js`) - Main singleton managing all bot operations
-- **AuthManager** (`src/bot/auth-manager.js`) - Handles OAuth for bot and channels with automatic token refresh
+- **AuthManager** (`src/bot/auth-manager.js`) - Multi-user OAuth with automatic token refresh; all clients share one provider
 - **ChannelManager** (`src/bot/channel-manager.js`) - Channel lifecycle, EventSub, and multi-chat support
 - **EventHandler** (`src/bot/event-handler.js`) - Routes events to appropriate handlers
 - **CommandHandler** (`src/bot/handlers/command-handler.js`) - Custom commands and counters

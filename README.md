@@ -20,6 +20,7 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - [Deployment](#deployment)
 - [Admin Interface](#admin-interface)
 - [Bot Commands](#bot-commands)
+- [Object Detection](#object-detection)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -44,17 +45,24 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - **Rate Limiting** - Protection against brute force and DoS attacks
 - **Session Security** - Secure cookie configuration with httpOnly and sameSite
 
-### Predefined Commands (10 Commands)
+### Predefined Commands (11 Commands)
 - **Random Advice** (`!advice`) - Get inspirational quotes with author attribution
 - **Magic 8 Ball** (`!ball`) - Get random fortune-telling responses
 - **Bot Commands** (`!botcommands`) - List all enabled commands for the current chat
 - **Dad Jokes** (`!dadjoke`) - Get random dad jokes from icanhazdadjoke.com
 - **Dictionary** (`!define`) - Look up word definitions via API with custom overrides
+- **Daily Horoscope** (`!horoscope`) - Get daily horoscope readings for any zodiac sign
 - **Random Fact** (`!randomfact`) - Get random useless but interesting facts
 - **Rock Paper Scissors** (`!rps`) - Play against the bot with persistent statistics
 - **RPS Stats** (`!rpsstats`) - View your Rock Paper Scissors statistics
 - **Trivia** (`!trivia`) - Answer trivia questions with a 30-second timer
 - **Trivia Stats** (`!triviastats`) - View your trivia statistics and streak
+
+### Object Detection (Experimental)
+- **YOLO-Powered Detection** - Real-time object detection on live Twitch streams
+- **Stream Capture** - FFmpeg-based frame capture from Twitch streams
+- **Detection Logging** - Track and review detection events with timestamps
+- **Web Dashboard** - View detection status and logs per channel
 
 ### Event Handling
 - **Raid Shoutouts** - Automatic thank-you messages when your channel receives a raid
@@ -478,8 +486,9 @@ Access the admin interface at `http://localhost:3000` (or `https://localhost:344
 | **Channels** | Manage connected channels, view status |
 | **Commands** | Create and manage custom `!commands` with bulk import |
 | **Counters** | Create and manage `word++` counters |
-| **Predefined Commands** | Enable/configure built-in commands |
+| **Predefined Commands** | Enable/configure built-in commands (11 commands) |
 | **Chat Memberships** | Join additional chats for cross-channel commands |
+| **Object Detection** | Monitor YOLO detection status and view detection logs |
 | **Account Security** | Two-factor authentication and backup codes |
 
 ---
@@ -519,11 +528,58 @@ Track things with increment syntax:
 | `!botcommands` | List enabled commands |
 | `!dadjoke` | Random dad jokes |
 | `!define <word>` | Dictionary lookup |
+| `!horoscope <sign>` | Daily horoscope reading |
 | `!randomfact` | Random useless facts |
 | `!rps <choice>` | Rock Paper Scissors |
 | `!rpsstats` | Your RPS statistics |
 | `!trivia` | Start a trivia question |
 | `!triviastats` | Your trivia statistics |
+
+---
+
+## Object Detection
+
+Saloon Bot includes an experimental YOLO-based object detection feature that can analyze live Twitch streams in real-time.
+
+### Prerequisites
+
+- **FFmpeg** - Required for stream capture (`ffmpeg -version` to verify)
+- **YOLO Model** - Downloaded automatically via script
+
+### Setup
+
+```bash
+# Download the YOLO model (YOLOv8n - ~6MB)
+node scripts/download-yolo-model.js
+
+# The model will be saved to ./models/yolov8n.onnx
+```
+
+### How It Works
+
+1. **Stream Capture** - FFmpeg captures frames from live Twitch streams via HLS
+2. **Object Detection** - YOLOv8 processes frames using ONNX Runtime
+3. **Event Logging** - Detections are logged to the database with timestamps
+4. **Web Dashboard** - View detection status and logs in the admin interface
+
+### Detection Classes
+
+The YOLO model can detect 80 common object classes including:
+- People, animals, vehicles
+- Sports equipment, furniture
+- Electronics, food items
+
+### Accessing Detection Dashboard
+
+1. Log in to the admin interface
+2. Navigate to **Object Detection** in the menu
+3. Select a channel to view its detection status and logs
+
+### Notes
+
+- Detection only runs when the stream is live
+- Frames are captured at configurable intervals (default: every few seconds)
+- Detection logs are stored per-channel and can be cleared
 
 ---
 
@@ -543,7 +599,7 @@ twitch-saloonbot/
 │   ├── docker-compose.yml
 │   └── docker-compose.dev.yml
 │
-├── migrations/              # Database migrations (8 total)
+├── migrations/              # Database migrations (11 total)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
@@ -551,7 +607,10 @@ twitch-saloonbot/
 │   ├── 005_emoji_support.sql
 │   ├── 006_trivia_stats.sql
 │   ├── 007_admin_users.sql
-│   └── 008_two_factor_auth.sql
+│   ├── 008_two_factor_auth.sql
+│   ├── 009_horoscope_cache.sql
+│   ├── 010_object_detection.sql
+│   └── 011_auth_twitch_id.sql
 │
 ├── tests/                   # Jest test suite
 │   ├── setup.js
@@ -559,9 +618,11 @@ twitch-saloonbot/
 │   └── integration/
 │
 ├── scripts/                 # Utility scripts
-│   ├── generate-certs.sh    # Generate SSL certificates
-│   ├── create-admin.js      # Create admin user
-│   └── migrate-tokens.js    # Encrypt existing tokens
+│   ├── generate-certs.sh         # Generate SSL certificates
+│   ├── create-admin.js           # Create admin user
+│   ├── migrate-tokens.js         # Encrypt existing tokens
+│   ├── download-yolo-model.js    # Download YOLO detection model
+│   └── migrate-auth-twitch-ids.js # Backfill auth Twitch IDs
 │
 ├── public/                  # Static web assets
 │   └── css/style.css
@@ -569,7 +630,7 @@ twitch-saloonbot/
 ├── src/
 │   ├── bot/                 # Bot core functionality
 │   │   ├── index.js         # BotCore class
-│   │   ├── auth-manager.js  # OAuth handling
+│   │   ├── auth-manager.js  # Multi-user OAuth handling
 │   │   ├── channel-manager.js
 │   │   ├── event-handler.js
 │   │   └── handlers/        # Event handlers
@@ -580,14 +641,20 @@ twitch-saloonbot/
 │   ├── database/            # Data layer
 │   │   ├── index.js         # SQLite connection
 │   │   ├── schema.js        # Table definitions
-│   │   └── repositories/    # Data access (13 repos)
+│   │   └── repositories/    # Data access (15 repos)
 │   │
-│   ├── services/            # External API services
-│   │   ├── advice-api.js
-│   │   ├── dadjoke-api.js
-│   │   ├── dictionary-api.js
-│   │   ├── randomfact-api.js
-│   │   └── trivia-api.js
+│   ├── services/            # API and detection services
+│   │   ├── advice-api.js         # Advice API integration
+│   │   ├── dadjoke-api.js        # Dad jokes API
+│   │   ├── dictionary-api.js     # Dictionary API
+│   │   ├── horoscope-api.js      # Horoscope API
+│   │   ├── randomfact-api.js     # Random facts API
+│   │   ├── trivia-api.js         # Trivia API
+│   │   ├── stream-status.js      # Twitch stream status checks
+│   │   ├── stream-capture.js     # FFmpeg stream capture
+│   │   ├── yolo-detection.js     # YOLO object detection
+│   │   ├── detection-pipeline.js # Detection processing pipeline
+│   │   └── detection-orchestrator.js # Detection coordination
 │   │
 │   ├── utils/               # Utilities
 │   │   ├── api-client.js    # External API wrapper
@@ -600,11 +667,17 @@ twitch-saloonbot/
 │       ├── index.js         # Express app
 │       ├── middleware/      # Express middleware
 │       │   └── auth.js      # Authentication
-│       ├── routes/          # HTTP routes
+│       ├── routes/          # HTTP routes (10 route files)
 │       │   ├── auth.js      # OAuth routes
 │       │   ├── login.js     # Login/logout
+│       │   ├── object-detection.js # Detection dashboard
 │       │   └── ...
 │       └── views/           # EJS templates
+│           ├── object-detection/  # Detection views
+│           └── ...
+│
+├── models/                  # YOLO model files (gitignored)
+│   └── yolov8n.onnx         # Downloaded via script
 │
 └── docs/                    # Documentation
     └── sec-review-1/        # Security review docs
@@ -639,6 +712,12 @@ twitch-saloonbot/
 - Ensure your device clock is synchronized (TOTP is time-based)
 - Use backup codes if you've lost access to your authenticator
 - Backup codes are single-use and cannot be regenerated without disabling 2FA
+
+**Object detection not working**
+- Ensure FFmpeg is installed on your system (`ffmpeg -version`)
+- Run `node scripts/download-yolo-model.js` to download the YOLO model
+- Check that the channel is live (detection only works on live streams)
+- Verify ONNX Runtime is installed (`npm install onnxruntime-node`)
 
 ### Logs
 
@@ -689,9 +768,11 @@ This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - s
 - [Twurple](https://twurple.js.org/) - Twitch API library
 - [Free Dictionary API](https://dictionaryapi.dev/) - Dictionary definitions
 - [icanhazdadjoke](https://icanhazdadjoke.com/) - Dad jokes API
-- [ZenQuotes](https://zenquotes.io/) - Inspirational quotes API
+- [Advice Slip](https://adviceslip.com/) - Life advice API
 - [Random Useless Facts](https://uselessfacts.jsph.pl/) - Random facts API
 - [Open Trivia Database](https://opentdb.com/) - Trivia questions API
+- [Horoscope.com](https://www.horoscope.com/) - Daily horoscope readings
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) - Object detection model
 
 ---
 

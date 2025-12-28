@@ -42,18 +42,21 @@ class BotCore {
       return false;
     }
 
-    // Create API client
-    const botAuthProvider = authManager.getBotAuthProvider();
-    this.apiClient = new ApiClient({ authProvider: botAuthProvider });
+    // Create API client with shared multi-user auth provider
+    // This provider contains tokens for both the bot AND all connected channels,
+    // enabling EventSub to find the correct token for channel-specific subscriptions
+    const authProvider = authManager.getAuthProvider();
+    this.apiClient = new ApiClient({ authProvider });
 
-    // Create Chat client
+    // Create Chat client (uses same auth provider)
     this.chatClient = new ChatClient({
-      authProvider: botAuthProvider,
+      authProvider,
       channels: [], // We'll join channels dynamically
       isAlwaysMod: false
     });
 
     // Create EventSub listener
+    // The apiClient has access to all channel tokens via the multi-user auth provider
     this.eventSubListener = new EventSubWsListener({
       apiClient: this.apiClient
     });

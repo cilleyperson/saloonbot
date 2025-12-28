@@ -62,12 +62,13 @@ function decryptToken(token) {
 // ==================== Channel Auth ====================
 
 /**
- * Save channel auth tokens
+ * Save channel auth tokens with Twitch user ID
  * @param {number} channelId - Channel ID
+ * @param {string} twitchUserId - Twitch user ID for token lookup
  * @param {Object} tokens - Token data
  * @returns {Object} Saved auth record
  */
-function saveChannelAuth(channelId, tokens) {
+function saveChannelAuth(channelId, twitchUserId, tokens) {
   const db = getDb();
   const { accessToken, refreshToken, scopes, expiresAt } = tokens;
 
@@ -78,9 +79,10 @@ function saveChannelAuth(channelId, tokens) {
   const encryptedRefreshToken = encryptToken(refreshToken);
 
   const stmt = db.prepare(`
-    INSERT INTO channel_auth (channel_id, access_token, refresh_token, scopes, expires_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO channel_auth (channel_id, twitch_user_id, access_token, refresh_token, scopes, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(channel_id) DO UPDATE SET
+      twitch_user_id = excluded.twitch_user_id,
       access_token = excluded.access_token,
       refresh_token = excluded.refresh_token,
       scopes = excluded.scopes,
@@ -88,8 +90,8 @@ function saveChannelAuth(channelId, tokens) {
       updated_at = CURRENT_TIMESTAMP
   `);
 
-  stmt.run(channelId, encryptedAccessToken, encryptedRefreshToken, scopesStr, expiresAt || null);
-  logger.info(`Saved channel auth for channel ${channelId}`);
+  stmt.run(channelId, twitchUserId, encryptedAccessToken, encryptedRefreshToken, scopesStr, expiresAt || null);
+  logger.info(`Saved channel auth for channel ${channelId} (Twitch ID: ${twitchUserId})`);
 
   return getChannelAuth(channelId);
 }
@@ -173,6 +175,83 @@ function getAllChannelAuths() {
   }));
 }
 
+/**
+ * Get all channel auths with Twitch user IDs (for multi-user auth provider)
+ * Falls back to channel's twitch_id if twitch_user_id is not set
+ * @returns {Object[]} Array of auth records with Twitch user IDs
+ */
+function getAllChannelAuthsWithTwitchId() {
+  const db = getDb();
+  const auths = db.prepare(`
+    SELECT
+      ca.channel_id,
+      ca.twitch_user_id,
+      ca.access_token,
+      ca.refresh_token,
+      ca.scopes,
+      ca.expires_at,
+      c.twitch_id as channel_twitch_id
+    FROM channel_auth ca
+    LEFT JOIN channels c ON c.id = ca.channel_id
+    WHERE c.is_active = 1
+  `).all();
+
+  return auths.map(auth => ({
+    ...auth,
+    // Decrypt tokens
+    access_token: decryptToken(auth.access_token),
+    refresh_token: decryptToken(auth.refresh_token)
+  }));
+}
+
+/**
+ * Get Twitch user ID for a channel auth
+ * @param {number} channelId - Channel ID
+ * @returns {string|null} Twitch user ID or null
+ */
+function getChannelTwitchId(channelId) {
+  const db = getDb();
+  const row = db.prepare('SELECT twitch_user_id FROM channel_auth WHERE channel_id = ?').get(channelId);
+  return row?.twitch_user_id || null;
+}
+
+/**
+ * Update Twitch user ID for a channel auth
+ * @param {number} channelId - Channel ID
+ * @param {string} twitchUserId - Twitch user ID
+ */
+function updateChannelTwitchId(channelId, twitchUserId) {
+  const db = getDb();
+  db.prepare(`
+    UPDATE channel_auth SET twitch_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE channel_id = ?
+  `).run(twitchUserId, channelId);
+  logger.debug(`Updated Twitch user ID for channel ${channelId} to ${twitchUserId}`);
+}
+
+/**
+ * Update channel auth tokens by Twitch user ID
+ * @param {string} twitchUserId - Twitch user ID
+ * @param {Object} tokens - Token data to update
+ * @returns {boolean} Whether any rows were updated
+ */
+function updateChannelAuthByTwitchId(twitchUserId, tokens) {
+  const db = getDb();
+  const { accessToken, refreshToken, expiresAt } = tokens;
+
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
+  const result = db.prepare(`
+    UPDATE channel_auth
+    SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE twitch_user_id = ?
+  `).run(encryptedAccessToken, encryptedRefreshToken, expiresAt || null, twitchUserId);
+
+  logger.debug(`Updated channel auth for Twitch user ${twitchUserId}`);
+  return result.changes > 0;
+}
+
 // ==================== Bot Auth ====================
 
 /**
@@ -202,6 +281,59 @@ function saveBotAuth(tokens) {
   logger.info(`Saved bot auth for ${botUsername}`);
 
   return getBotAuth();
+}
+
+/**
+ * Save bot auth tokens with Twitch user ID
+ * @param {string} twitchUserId - Twitch user ID
+ * @param {string} botUsername - Bot username
+ * @param {string} accessToken - Access token
+ * @param {string} refreshToken - Refresh token
+ * @param {string} scopes - Space-separated scopes
+ * @returns {Object} Saved auth record
+ */
+function saveBotAuthWithTwitchId(twitchUserId, botUsername, accessToken, refreshToken, scopes) {
+  const db = getDb();
+
+  const scopesStr = Array.isArray(scopes) ? scopes.join(' ') : scopes;
+
+  // Encrypt tokens before storing
+  const encryptedAccessToken = encryptToken(accessToken);
+  const encryptedRefreshToken = encryptToken(refreshToken);
+
+  // Delete existing bot auth and insert new
+  db.prepare('DELETE FROM bot_auth').run();
+
+  const stmt = db.prepare(`
+    INSERT INTO bot_auth (twitch_user_id, bot_username, access_token, refresh_token, scopes)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(twitchUserId, botUsername, encryptedAccessToken, encryptedRefreshToken, scopesStr);
+  logger.info(`Saved bot auth for ${botUsername} (Twitch ID: ${twitchUserId})`);
+
+  return getBotAuthWithTwitchId();
+}
+
+/**
+ * Get bot auth with Twitch user ID
+ * @returns {Object|null} Bot auth with Twitch ID or null
+ */
+function getBotAuthWithTwitchId() {
+  const db = getDb();
+  const auth = db.prepare(`
+    SELECT twitch_user_id, bot_username, access_token, refresh_token, scopes
+    FROM bot_auth ORDER BY id DESC LIMIT 1
+  `).get();
+
+  if (auth) {
+    // Decrypt tokens
+    auth.access_token = decryptToken(auth.access_token);
+    auth.refresh_token = decryptToken(auth.refresh_token);
+    auth.scopes = auth.scopes ? auth.scopes.split(' ') : [];
+  }
+
+  return auth;
 }
 
 /**
@@ -273,10 +405,18 @@ module.exports = {
   updateChannelAuth,
   deleteChannelAuth,
   getAllChannelAuths,
+  // Channel auth - Twitch ID support
+  getAllChannelAuthsWithTwitchId,
+  getChannelTwitchId,
+  updateChannelTwitchId,
+  updateChannelAuthByTwitchId,
   // Bot auth
   saveBotAuth,
   getBotAuth,
   updateBotAuth,
   deleteBotAuth,
-  isBotAuthenticated
+  isBotAuthenticated,
+  // Bot auth - Twitch ID support
+  saveBotAuthWithTwitchId,
+  getBotAuthWithTwitchId
 };

@@ -1,6 +1,7 @@
 const channelRepo = require('../database/repositories/channel-repo');
 const settingsRepo = require('../database/repositories/settings-repo');
 const chatMembershipRepo = require('../database/repositories/chat-membership-repo');
+const authManager = require('./auth-manager');
 const { createChildLogger } = require('../utils/logger');
 
 const logger = createChildLogger('channel-manager');
@@ -283,34 +284,60 @@ class ChannelManager {
 
     const twitchId = channel.twitch_id;
 
+    // Verify we have a token registered for this channel
+    // This is required for EventSub to make API calls on behalf of the channel
+    if (!authManager.hasChannelToken(twitchId)) {
+      logger.warn(`No token found for channel ${channel.twitch_username} (Twitch ID: ${twitchId}) - skipping EventSub subscriptions`);
+      logger.info(`Channel ${channel.twitch_username} needs to re-authorize via OAuth to enable EventSub features`);
+      return subscriptions;
+    }
+
     try {
       // Raid events
       const raidSub = this.eventSubListener.onChannelRaidTo(twitchId, (event) => {
         this.eventHandler.onRaid(channel.id, event);
       });
       subscriptions.push(raidSub);
+      logger.debug(`Subscribed to raid events for ${channel.twitch_username}`);
+    } catch (error) {
+      logger.error(`Failed to subscribe to raid events for ${channel.twitch_username}`, { error: error.message });
+    }
 
+    try {
       // Subscription events
       const subSub = this.eventSubListener.onChannelSubscription(twitchId, (event) => {
         this.eventHandler.onSubscription(channel.id, event);
       });
       subscriptions.push(subSub);
+      logger.debug(`Subscribed to subscription events for ${channel.twitch_username}`);
+    } catch (error) {
+      logger.error(`Failed to subscribe to subscription events for ${channel.twitch_username}`, { error: error.message });
+    }
 
+    try {
       // Subscription message (resubs)
       const resubSub = this.eventSubListener.onChannelSubscriptionMessage(twitchId, (event) => {
         this.eventHandler.onSubscriptionMessage(channel.id, event);
       });
       subscriptions.push(resubSub);
+      logger.debug(`Subscribed to resub message events for ${channel.twitch_username}`);
+    } catch (error) {
+      logger.error(`Failed to subscribe to resub message events for ${channel.twitch_username}`, { error: error.message });
+    }
 
+    try {
       // Gift subscriptions
       const giftSub = this.eventSubListener.onChannelSubscriptionGift(twitchId, (event) => {
         this.eventHandler.onSubscriptionGift(channel.id, event);
       });
       subscriptions.push(giftSub);
-
-      logger.debug(`Subscribed to events for ${channel.twitch_username}`);
+      logger.debug(`Subscribed to gift sub events for ${channel.twitch_username}`);
     } catch (error) {
-      logger.error(`Failed to subscribe to events for ${channel.twitch_username}`, { error: error.message });
+      logger.error(`Failed to subscribe to gift sub events for ${channel.twitch_username}`, { error: error.message });
+    }
+
+    if (subscriptions.length > 0) {
+      logger.info(`Created ${subscriptions.length} EventSub subscriptions for ${channel.twitch_username}`);
     }
 
     return subscriptions;

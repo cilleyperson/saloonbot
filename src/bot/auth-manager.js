@@ -6,59 +6,79 @@ const { createChildLogger } = require('../utils/logger');
 const logger = createChildLogger('auth-manager');
 
 /**
- * Manages authentication for the bot and multiple channels
+ * Manages authentication for the bot and multiple channels using a single
+ * multi-user RefreshingAuthProvider.
+ *
+ * This architecture enables EventSub to find tokens for any registered user
+ * by their Twitch ID, which is required for channel-specific subscriptions.
  */
 class AuthManager {
   constructor() {
-    this.botAuthProvider = null;
-    this.channelAuthProviders = new Map(); // channelId -> AuthProvider
+    this.authProvider = null;          // Single multi-user provider
+    this.botTwitchId = null;           // Bot's Twitch user ID
+    this.botUsername = null;           // Bot's Twitch username
+    this.channelTwitchIds = new Set(); // Track registered channel Twitch IDs
     this.initialized = false;
   }
 
   /**
    * Initialize the auth manager
-   * Loads existing tokens from database
+   * Creates a single auth provider and loads all tokens
    */
   async initialize() {
     if (this.initialized) return;
 
-    logger.info('Initializing auth manager');
+    logger.info('Initializing auth manager with multi-user provider');
 
-    // Try to load bot auth
-    await this.loadBotAuth();
+    // Create single multi-user auth provider
+    this.authProvider = new RefreshingAuthProvider({
+      clientId: config.twitch.clientId,
+      clientSecret: config.twitch.clientSecret
+    });
 
-    // Load all channel auths
-    await this.loadAllChannelAuths();
+    // Set up refresh callback for all users
+    this.authProvider.onRefresh((userId, newTokenData) => {
+      this._handleTokenRefresh(userId, newTokenData);
+    });
+
+    // Load bot token
+    await this._loadBotAuth();
+
+    // Load all channel tokens
+    await this._loadAllChannelAuths();
 
     this.initialized = true;
-    logger.info('Auth manager initialized');
+    logger.info(`Auth manager initialized with ${this.channelTwitchIds.size} channel tokens`);
   }
 
   /**
    * Load bot authentication from database
    */
-  async loadBotAuth() {
-    const botAuth = authRepo.getBotAuth();
+  async _loadBotAuth() {
+    const botAuth = authRepo.getBotAuthWithTwitchId();
 
     if (!botAuth) {
       logger.warn('No bot authentication found. Please authenticate the bot via /auth/bot');
       return false;
     }
 
-    try {
-      this.botAuthProvider = this.createAuthProvider(
-        botAuth.access_token,
-        botAuth.refresh_token,
-        botAuth.scopes,
-        async (userId, newTokenData) => {
-          await this.onBotTokenRefresh(newTokenData);
-        }
-      );
+    if (botAuth.twitch_user_id) {
+      this.botTwitchId = botAuth.twitch_user_id;
+      this.botUsername = botAuth.bot_username;
 
-      logger.info(`Bot auth loaded for: ${botAuth.bot_username}`);
+      this.authProvider.addUser(botAuth.twitch_user_id, {
+        accessToken: botAuth.access_token,
+        refreshToken: botAuth.refresh_token,
+        scope: botAuth.scopes,
+        expiresIn: 0, // Will trigger refresh check
+        obtainmentTimestamp: Date.now()
+      }, ['chat']); // Bot needs chat intents
+
+      logger.info(`Loaded bot token for ${botAuth.bot_username} (Twitch ID: ${botAuth.twitch_user_id})`);
       return true;
-    } catch (error) {
-      logger.error('Failed to load bot auth', { error: error.message });
+    } else {
+      // Legacy bot auth without Twitch ID
+      logger.warn('Bot auth exists but missing Twitch ID - please re-authorize via /auth/bot');
       return false;
     }
   }
@@ -66,175 +86,87 @@ class AuthManager {
   /**
    * Load all channel authentications from database
    */
-  async loadAllChannelAuths() {
-    const channelAuths = authRepo.getAllChannelAuths();
+  async _loadAllChannelAuths() {
+    const channelAuths = authRepo.getAllChannelAuthsWithTwitchId();
 
     for (const auth of channelAuths) {
+      // Use stored twitch_user_id, fallback to channel's twitch_id
+      const twitchId = auth.twitch_user_id || auth.channel_twitch_id;
+
+      if (!twitchId) {
+        logger.warn(`Channel ${auth.channel_id} has no Twitch ID - skipping token registration`);
+        continue;
+      }
+
+      // Update database if we used fallback
+      if (!auth.twitch_user_id && auth.channel_twitch_id) {
+        authRepo.updateChannelTwitchId(auth.channel_id, auth.channel_twitch_id);
+        logger.debug(`Backfilled twitch_user_id for channel ${auth.channel_id}`);
+      }
+
       try {
-        await this.addChannelAuth(auth.channel_id, {
+        this.authProvider.addUser(twitchId, {
           accessToken: auth.access_token,
           refreshToken: auth.refresh_token,
-          scopes: auth.scopes
-        }, false); // Don't save to DB since we're loading from it
+          scope: auth.scopes ? auth.scopes.split(' ') : [],
+          expiresIn: 0,
+          obtainmentTimestamp: Date.now()
+        }, ['channel']); // Channels don't need chat intents
+
+        this.channelTwitchIds.add(twitchId);
+        logger.debug(`Loaded channel token for Twitch ID ${twitchId}`);
       } catch (error) {
         logger.error(`Failed to load auth for channel ${auth.channel_id}`, { error: error.message });
       }
     }
 
-    logger.info(`Loaded ${this.channelAuthProviders.size} channel auth providers`);
+    logger.info(`Loaded ${this.channelTwitchIds.size} channel tokens`);
   }
 
   /**
-   * Create a RefreshingAuthProvider
-   * @param {string} accessToken - Access token
-   * @param {string} refreshToken - Refresh token
-   * @param {string[]} scopes - Token scopes
-   * @param {Function} onRefresh - Callback when token is refreshed
+   * Handle token refresh (save to DB)
+   * @param {string} userId - Twitch user ID
+   * @param {Object} newTokenData - New token data
+   */
+  async _handleTokenRefresh(userId, newTokenData) {
+    logger.debug(`Token refreshed for user ${userId}`);
+
+    const expiresAt = newTokenData.expiresIn
+      ? new Date(Date.now() + newTokenData.expiresIn * 1000).toISOString()
+      : null;
+
+    if (userId === this.botTwitchId) {
+      authRepo.updateBotAuth({
+        accessToken: newTokenData.accessToken,
+        refreshToken: newTokenData.refreshToken,
+        expiresAt
+      });
+      logger.debug('Bot token updated in database');
+    } else {
+      authRepo.updateChannelAuthByTwitchId(userId, {
+        accessToken: newTokenData.accessToken,
+        refreshToken: newTokenData.refreshToken,
+        expiresAt
+      });
+      logger.debug(`Channel token updated in database for Twitch user ${userId}`);
+    }
+  }
+
+  /**
+   * Get the single auth provider (used by BotCore)
    * @returns {RefreshingAuthProvider}
    */
-  createAuthProvider(accessToken, refreshToken, scopes, onRefresh) {
-    const authProvider = new RefreshingAuthProvider({
-      clientId: config.twitch.clientId,
-      clientSecret: config.twitch.clientSecret
-    });
-
-    authProvider.onRefresh(onRefresh);
-
-    // Add the user with initial token data
-    authProvider.addUser('', {
-      accessToken,
-      refreshToken,
-      scope: Array.isArray(scopes) ? scopes : scopes.split(' '),
-      expiresIn: 0, // Will trigger refresh check
-      obtainmentTimestamp: Date.now()
-    }, ['chat']);
-
-    return authProvider;
+  getAuthProvider() {
+    return this.authProvider;
   }
 
   /**
-   * Handle bot token refresh
-   * @param {Object} newTokenData - New token data
-   */
-  async onBotTokenRefresh(newTokenData) {
-    logger.debug('Bot token refreshed');
-
-    authRepo.updateBotAuth({
-      accessToken: newTokenData.accessToken,
-      refreshToken: newTokenData.refreshToken,
-      expiresAt: newTokenData.expiresIn
-        ? new Date(Date.now() + newTokenData.expiresIn * 1000).toISOString()
-        : null
-    });
-  }
-
-  /**
-   * Handle channel token refresh
-   * @param {number} channelId - Channel ID
-   * @param {Object} newTokenData - New token data
-   */
-  async onChannelTokenRefresh(channelId, newTokenData) {
-    logger.debug(`Channel ${channelId} token refreshed`);
-
-    authRepo.updateChannelAuth(channelId, {
-      accessToken: newTokenData.accessToken,
-      refreshToken: newTokenData.refreshToken,
-      expiresAt: newTokenData.expiresIn
-        ? new Date(Date.now() + newTokenData.expiresIn * 1000).toISOString()
-        : null
-    });
-  }
-
-  /**
-   * Save bot authentication
-   * @param {Object} tokenData - Token data from OAuth
-   * @param {string} botUsername - Bot username
-   */
-  async saveBotAuth(tokenData, botUsername) {
-    const { accessToken, refreshToken, scope } = tokenData;
-
-    authRepo.saveBotAuth({
-      botUsername,
-      accessToken,
-      refreshToken,
-      scopes: scope,
-      expiresAt: tokenData.expiresIn
-        ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
-        : null
-    });
-
-    // Create auth provider
-    this.botAuthProvider = this.createAuthProvider(
-      accessToken,
-      refreshToken,
-      scope,
-      async (userId, newTokenData) => {
-        await this.onBotTokenRefresh(newTokenData);
-      }
-    );
-
-    logger.info(`Bot auth saved for: ${botUsername}`);
-  }
-
-  /**
-   * Add channel authentication
-   * @param {number} channelId - Channel ID
-   * @param {Object} tokenData - Token data
-   * @param {boolean} saveToDb - Whether to save to database
-   */
-  async addChannelAuth(channelId, tokenData, saveToDb = true) {
-    const { accessToken, refreshToken, scopes } = tokenData;
-
-    if (saveToDb) {
-      authRepo.saveChannelAuth(channelId, {
-        accessToken,
-        refreshToken,
-        scopes: Array.isArray(scopes) ? scopes.join(' ') : scopes,
-        expiresAt: tokenData.expiresIn
-          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
-          : null
-      });
-    }
-
-    // Create auth provider for this channel
-    const authProvider = this.createAuthProvider(
-      accessToken,
-      refreshToken,
-      scopes,
-      async (userId, newTokenData) => {
-        await this.onChannelTokenRefresh(channelId, newTokenData);
-      }
-    );
-
-    this.channelAuthProviders.set(channelId, authProvider);
-    logger.info(`Added auth for channel ${channelId}`);
-  }
-
-  /**
-   * Remove channel authentication
-   * @param {number} channelId - Channel ID
-   */
-  removeChannelAuth(channelId) {
-    authRepo.deleteChannelAuth(channelId);
-    this.channelAuthProviders.delete(channelId);
-    logger.info(`Removed auth for channel ${channelId}`);
-  }
-
-  /**
-   * Get bot auth provider
-   * @returns {RefreshingAuthProvider|null}
+   * Get bot auth provider (alias for backward compatibility)
+   * @returns {RefreshingAuthProvider}
+   * @deprecated Use getAuthProvider() instead
    */
   getBotAuthProvider() {
-    return this.botAuthProvider;
-  }
-
-  /**
-   * Get channel auth provider
-   * @param {number} channelId - Channel ID
-   * @returns {RefreshingAuthProvider|null}
-   */
-  getChannelAuthProvider(channelId) {
-    return this.channelAuthProviders.get(channelId) || null;
+    return this.authProvider;
   }
 
   /**
@@ -242,16 +174,119 @@ class AuthManager {
    * @returns {boolean}
    */
   isBotAuthenticated() {
-    return this.botAuthProvider !== null;
+    return this.botTwitchId !== null;
   }
 
   /**
-   * Check if channel is authenticated
-   * @param {number} channelId - Channel ID
+   * Get bot's Twitch user ID
+   * @returns {string|null}
+   */
+  getBotTwitchId() {
+    return this.botTwitchId;
+  }
+
+  /**
+   * Get bot's username
+   * @returns {string|null}
+   */
+  getBotUsername() {
+    return this.botUsername;
+  }
+
+  /**
+   * Check if a channel has a registered token
+   * @param {string} twitchId - Twitch user ID
+   * @returns {boolean}
+   */
+  hasChannelToken(twitchId) {
+    return this.channelTwitchIds.has(twitchId);
+  }
+
+  /**
+   * Check if channel is authenticated (by channel ID)
+   * @param {number} channelId - Channel database ID
    * @returns {boolean}
    */
   isChannelAuthenticated(channelId) {
-    return this.channelAuthProviders.has(channelId);
+    const twitchId = authRepo.getChannelTwitchId(channelId);
+    return twitchId ? this.channelTwitchIds.has(twitchId) : false;
+  }
+
+  /**
+   * Save bot authentication with Twitch ID
+   * @param {Object} tokenData - Token data from OAuth
+   * @param {string} twitchId - Bot's Twitch user ID
+   * @param {string} botUsername - Bot's Twitch username
+   */
+  async saveBotAuth(tokenData, twitchId, botUsername) {
+    const { accessToken, refreshToken, scope } = tokenData;
+    const scopeArray = Array.isArray(scope) ? scope : (scope ? scope.split(' ') : []);
+
+    // Save to database with Twitch ID
+    authRepo.saveBotAuthWithTwitchId(twitchId, botUsername, accessToken, refreshToken, scopeArray.join(' '));
+
+    // Add to auth provider
+    this.authProvider.addUser(twitchId, {
+      accessToken,
+      refreshToken,
+      scope: scopeArray,
+      expiresIn: 0,
+      obtainmentTimestamp: Date.now()
+    }, ['chat']);
+
+    this.botTwitchId = twitchId;
+    this.botUsername = botUsername;
+
+    logger.info(`Bot auth saved for ${botUsername} (Twitch ID: ${twitchId})`);
+  }
+
+  /**
+   * Add channel authentication
+   * @param {number} channelId - Channel database ID
+   * @param {string} twitchId - Channel's Twitch user ID
+   * @param {Object} tokenData - Token data
+   */
+  async addChannelAuth(channelId, twitchId, tokenData) {
+    const { accessToken, refreshToken, scopes, expiresIn } = tokenData;
+    const scopeArray = Array.isArray(scopes) ? scopes : (scopes ? scopes.split(' ') : []);
+
+    // Save to database with Twitch ID
+    authRepo.saveChannelAuth(channelId, twitchId, {
+      accessToken,
+      refreshToken,
+      scopes: scopeArray.join(' '),
+      expiresAt: expiresIn
+        ? new Date(Date.now() + expiresIn * 1000).toISOString()
+        : null
+    });
+
+    // Add to auth provider
+    this.authProvider.addUser(twitchId, {
+      accessToken,
+      refreshToken,
+      scope: scopeArray,
+      expiresIn: 0,
+      obtainmentTimestamp: Date.now()
+    }, ['channel']);
+
+    this.channelTwitchIds.add(twitchId);
+
+    logger.info(`Channel auth added for channel ${channelId} (Twitch ID: ${twitchId})`);
+  }
+
+  /**
+   * Remove channel authentication
+   * @param {number} channelId - Channel database ID
+   */
+  removeChannelAuth(channelId) {
+    const twitchId = authRepo.getChannelTwitchId(channelId);
+    authRepo.deleteChannelAuth(channelId);
+
+    if (twitchId) {
+      this.channelTwitchIds.delete(twitchId);
+    }
+
+    logger.info(`Removed auth for channel ${channelId}`);
   }
 
   /**

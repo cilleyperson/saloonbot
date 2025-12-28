@@ -81,14 +81,14 @@ async function handleBotCallback(req, res, code) {
     // Exchange code for tokens
     const tokens = await authManager.exchangeCode(code, config.twitch.callbackUrl);
 
-    // Get user info
+    // Get user info (includes Twitch ID)
     const userInfo = await authManager.getUserInfo(tokens.accessToken);
     if (!userInfo) {
       throw new Error('Failed to get user info');
     }
 
-    // Save bot auth
-    await authManager.saveBotAuth(tokens, userInfo.login);
+    // Save bot auth with Twitch ID for multi-user auth provider
+    await authManager.saveBotAuth(tokens, userInfo.id, userInfo.login);
 
     // Try to reinitialize and start the bot
     const initialized = await botCore.initialize();
@@ -96,7 +96,7 @@ async function handleBotCallback(req, res, code) {
       await botCore.start();
     }
 
-    logger.info(`Bot authenticated as: ${userInfo.login}`);
+    logger.info(`Bot authenticated as: ${userInfo.login} (Twitch ID: ${userInfo.id})`);
     req.flash('success', `Bot authenticated as ${userInfo.display_name}`);
     res.redirect('/');
   } catch (err) {
@@ -117,7 +117,7 @@ async function handleChannelCallback(req, res, code) {
     // Exchange code for tokens
     const tokens = await authManager.exchangeCode(code, config.twitch.callbackUrl);
 
-    // Get user info
+    // Get user info (includes Twitch ID)
     const userInfo = await authManager.getUserInfo(tokens.accessToken);
     if (!userInfo) {
       throw new Error('Failed to get user info');
@@ -139,8 +139,8 @@ async function handleChannelCallback(req, res, code) {
       channel = channelRepo.create(userInfo.id, userInfo.login, userInfo.display_name);
     }
 
-    // Save channel auth
-    await authManager.addChannelAuth(channel.id, {
+    // Save channel auth with Twitch ID for multi-user auth provider
+    await authManager.addChannelAuth(channel.id, userInfo.id, {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       scopes: tokens.scope,
@@ -155,7 +155,7 @@ async function handleChannelCallback(req, res, code) {
       await botCore.addChannel(channel.id);
     }
 
-    logger.info(`Channel authorized: ${userInfo.login}`);
+    logger.info(`Channel authorized: ${userInfo.login} (Twitch ID: ${userInfo.id})`);
     req.flash('success', `Channel ${userInfo.display_name} has been added`);
     res.redirect(`/channels/${channel.id}`);
   } catch (err) {
