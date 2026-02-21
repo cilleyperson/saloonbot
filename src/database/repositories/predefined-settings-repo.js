@@ -267,8 +267,8 @@ function getCommandInfo(commandName) {
     horoscope: {
       name: 'horoscope',
       displayName: 'Daily Horoscope',
-      trigger: '!horoscope <sign>',
-      description: 'Get your daily horoscope reading for any zodiac sign',
+      trigger: '!horoscope [sign]',
+      description: 'Get your daily horoscope reading — provide a zodiac sign or get a random one',
       emoji: '🔮'
     },
     randomfact: {

@@ -3,6 +3,7 @@ const magic8ballRepo = require('../../database/repositories/magic-8ball-repo');
 const dictionaryRepo = require('../../database/repositories/dictionary-repo');
 const rpsStatsRepo = require('../../database/repositories/rps-stats-repo');
 const triviaStatsRepo = require('../../database/repositories/trivia-stats-repo');
+const horoscopeRepo = require('../../database/repositories/horoscope-repo');
 const commandRepo = require('../../database/repositories/command-repo');
 const counterRepo = require('../../database/repositories/counter-repo');
 const adviceApi = require('../../services/advice-api');
@@ -427,12 +428,15 @@ class PredefinedCommandHandler {
    * @param {string[]} args - Command arguments (zodiac sign)
    */
   async handleHoroscope(chatName, user, args) {
-    if (args.length === 0) {
-      await this.chatClient.say(chatName, `🔮 @${user}, usage: !horoscope <sign> (e.g., !horoscope aries, !horoscope leo)`);
-      return;
-    }
+    let signInput;
 
-    const signInput = args[0];
+    if (args.length === 0) {
+      // Pick a random zodiac sign
+      const signs = horoscopeRepo.getValidSigns();
+      signInput = signs[Math.floor(Math.random() * signs.length)];
+    } else {
+      signInput = args[0];
+    }
 
     try {
       const result = await horoscopeApi.getHoroscope(signInput);
