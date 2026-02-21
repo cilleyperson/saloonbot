@@ -68,6 +68,17 @@
 
     <div class="card mt-6">
       <div class="card-header">
+        <h2 class="card-title">Bot Account</h2>
+        <a href="/auth/bot" class="btn btn-secondary btn-sm">Re-authenticate Bot</a>
+      </div>
+      <div class="card-body">
+        <p class="text-primary font-medium">${typeof botStatus !== 'undefined' && botStatus.botUsername ? '@' + botStatus.botUsername : 'Not authenticated'}</p>
+        <p class="text-muted text-sm mt-2">Use re-authenticate if the bot is having connection issues due to expired or revoked tokens.</p>
+      </div>
+    </div>
+
+    <div class="card mt-6">
+      <div class="card-header">
         <h2 class="card-title">Connected Channels</h2>
         <a href="/channels/add" class="btn btn-primary btn-sm">Add Channel</a>
       </div>

@@ -288,6 +288,7 @@ class BotCore {
     const status = {
       running: this.running,
       authenticated: authManager.isBotAuthenticated(),
+      botUsername: authManager.getBotUsername(),
       channelCount: this.channelManager.getActiveChannelIds().length,
       channels: this.channelManager.getActiveChannels()
     };
