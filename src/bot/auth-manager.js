@@ -12,6 +12,10 @@ const logger = createChildLogger('auth-manager');
  * This architecture enables EventSub to find tokens for any registered user
  * by their Twitch ID, which is required for channel-specific subscriptions.
  */
+const PROACTIVE_REFRESH_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
+const RETRY_BASE_DELAY_MS = 5000; // 5 seconds
+const MAX_RETRY_ATTEMPTS = 3;
+
 class AuthManager {
   constructor() {
     this.authProvider = null;          // Single multi-user provider
@@ -19,6 +23,8 @@ class AuthManager {
     this.botUsername = null;           // Bot's Twitch username
     this.channelTwitchIds = new Set(); // Track registered channel Twitch IDs
     this.initialized = false;
+    this._proactiveRefreshInterval = null;
+    this._pendingRetries = new Map();  // Track in-flight retries by userId
   }
 
   /**
@@ -41,14 +47,40 @@ class AuthManager {
       this._handleTokenRefresh(userId, newTokenData);
     });
 
+    // Set up refresh failure handler to recover from transient errors
+    this.authProvider.onRefreshFailure((userId, error) => {
+      this._handleRefreshFailure(userId, error);
+    });
+
     // Load bot token
     await this._loadBotAuth();
 
     // Load all channel tokens
     await this._loadAllChannelAuths();
 
+    // Start proactive token refresh interval
+    this._startProactiveRefresh();
+
     this.initialized = true;
     logger.info(`Auth manager initialized with ${this.channelTwitchIds.size} channel tokens`);
+  }
+
+  /**
+   * Shutdown the auth manager - clear intervals and pending retries
+   */
+  shutdown() {
+    if (this._proactiveRefreshInterval) {
+      clearInterval(this._proactiveRefreshInterval);
+      this._proactiveRefreshInterval = null;
+    }
+
+    // Clear any pending retry timeouts
+    for (const [userId, timeoutId] of this._pendingRetries) {
+      clearTimeout(timeoutId);
+    }
+    this._pendingRetries.clear();
+
+    logger.info('Auth manager shut down');
   }
 
   /**
@@ -69,12 +101,14 @@ class AuthManager {
       // Scopes are already parsed as array by auth-repo
       const scopeArray = Array.isArray(botAuth.scopes) ? botAuth.scopes : [];
 
+      const tokenInfo = this._computeTokenExpiry(botAuth.expires_at, botAuth.updated_at);
+
       this.authProvider.addUser(botAuth.twitch_user_id, {
         accessToken: botAuth.access_token,
         refreshToken: botAuth.refresh_token,
         scope: scopeArray,
-        expiresIn: 0, // Will trigger refresh check
-        obtainmentTimestamp: Date.now()
+        expiresIn: tokenInfo.expiresIn,
+        obtainmentTimestamp: tokenInfo.obtainmentTimestamp
       }, ['chat']); // Bot needs chat intents
 
       logger.info(`Loaded bot token for ${botAuth.bot_username} (Twitch ID: ${botAuth.twitch_user_id})`, { scopes: scopeArray });
@@ -108,12 +142,14 @@ class AuthManager {
       }
 
       try {
+        const tokenInfo = this._computeTokenExpiry(auth.expires_at, auth.updated_at);
+
         this.authProvider.addUser(twitchId, {
           accessToken: auth.access_token,
           refreshToken: auth.refresh_token,
           scope: auth.scopes ? auth.scopes.split(' ') : [],
-          expiresIn: 0,
-          obtainmentTimestamp: Date.now()
+          expiresIn: tokenInfo.expiresIn,
+          obtainmentTimestamp: tokenInfo.obtainmentTimestamp
         }, ['channel']); // Channels don't need chat intents
 
         this.channelTwitchIds.add(twitchId);
@@ -153,6 +189,164 @@ class AuthManager {
       });
       logger.debug(`Channel token updated in database for Twitch user ${userId}`);
     }
+  }
+
+  /**
+   * Compute expiresIn and obtainmentTimestamp from stored DB values.
+   * Falls back to expiresIn: 0 (forces refresh) if expires_at is unavailable.
+   * @param {string|null} expiresAt - ISO timestamp of token expiry
+   * @param {string|null} updatedAt - ISO timestamp of last token update
+   * @returns {{ expiresIn: number, obtainmentTimestamp: number }}
+   */
+  _computeTokenExpiry(expiresAt, updatedAt) {
+    if (!expiresAt) {
+      return { expiresIn: 0, obtainmentTimestamp: Date.now() };
+    }
+
+    const expiresAtMs = new Date(expiresAt).getTime();
+    const obtainmentTimestamp = updatedAt ? new Date(updatedAt).getTime() : Date.now();
+    const expiresIn = Math.max(0, Math.floor((expiresAtMs - obtainmentTimestamp) / 1000));
+
+    return { expiresIn, obtainmentTimestamp };
+  }
+
+  /**
+   * Handle a token refresh failure by scheduling retries with exponential backoff.
+   * @param {string} userId - Twitch user ID whose refresh failed
+   * @param {Error} error - The refresh error
+   */
+  _handleRefreshFailure(userId, error) {
+    logger.warn(`Token refresh failed for user ${userId}`, { error: error.message });
+
+    // Don't stack retries for the same user
+    if (this._pendingRetries.has(userId)) {
+      logger.debug(`Retry already pending for user ${userId}, skipping`);
+      return;
+    }
+
+    this._scheduleRetry(userId, 1);
+  }
+
+  /**
+   * Schedule a retry attempt for a failed token refresh.
+   * @param {string} userId - Twitch user ID
+   * @param {number} attempt - Current attempt number (1-based)
+   */
+  _scheduleRetry(userId, attempt) {
+    if (attempt > MAX_RETRY_ATTEMPTS) {
+      logger.error(`All ${MAX_RETRY_ATTEMPTS} token refresh retries exhausted for user ${userId}. Manual re-authentication required.`);
+      this._pendingRetries.delete(userId);
+      return;
+    }
+
+    const delay = RETRY_BASE_DELAY_MS * Math.pow(3, attempt - 1); // 5s, 15s, 45s
+    logger.info(`Scheduling token refresh retry ${attempt}/${MAX_RETRY_ATTEMPTS} for user ${userId} in ${delay / 1000}s`);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        // Verify user is still registered (may have been removed during wait)
+        const isRegistered = userId === this.botTwitchId || this.channelTwitchIds.has(userId);
+        if (!isRegistered) {
+          logger.debug(`User ${userId} no longer registered, cancelling retry`);
+          this._pendingRetries.delete(userId);
+          return;
+        }
+
+        // Reload token from DB and re-add to provider (clears cached failure)
+        await this._reAddUserFromDb(userId);
+
+        // Force a fresh refresh attempt
+        await this.authProvider.refreshAccessTokenForUser(userId);
+
+        logger.info(`Token refresh retry succeeded for user ${userId} on attempt ${attempt}`);
+        this._pendingRetries.delete(userId);
+      } catch (retryError) {
+        logger.warn(`Token refresh retry ${attempt}/${MAX_RETRY_ATTEMPTS} failed for user ${userId}`, { error: retryError.message });
+        this._pendingRetries.delete(userId);
+        this._scheduleRetry(userId, attempt + 1);
+      }
+    }, delay);
+
+    this._pendingRetries.set(userId, timeoutId);
+  }
+
+  /**
+   * Re-add a user to the auth provider from the database, clearing any cached failure state.
+   * @param {string} userId - Twitch user ID
+   */
+  async _reAddUserFromDb(userId) {
+    if (userId === this.botTwitchId) {
+      const botAuth = authRepo.getBotAuthWithTwitchId();
+      if (!botAuth) {
+        throw new Error('Bot auth not found in database');
+      }
+
+      const scopeArray = Array.isArray(botAuth.scopes) ? botAuth.scopes : [];
+      const tokenInfo = this._computeTokenExpiry(botAuth.expires_at, botAuth.updated_at);
+
+      this.authProvider.addUser(userId, {
+        accessToken: botAuth.access_token,
+        refreshToken: botAuth.refresh_token,
+        scope: scopeArray,
+        expiresIn: tokenInfo.expiresIn,
+        obtainmentTimestamp: tokenInfo.obtainmentTimestamp
+      }, ['chat']);
+
+      logger.debug(`Re-added bot user ${userId} to auth provider from database`);
+    } else {
+      const channelAuths = authRepo.getAllChannelAuthsWithTwitchId();
+      const auth = channelAuths.find(a => (a.twitch_user_id || a.channel_twitch_id) === userId);
+
+      if (!auth) {
+        throw new Error(`Channel auth not found for Twitch user ${userId}`);
+      }
+
+      const tokenInfo = this._computeTokenExpiry(auth.expires_at, auth.updated_at);
+
+      this.authProvider.addUser(userId, {
+        accessToken: auth.access_token,
+        refreshToken: auth.refresh_token,
+        scope: auth.scopes ? auth.scopes.split(' ') : [],
+        expiresIn: tokenInfo.expiresIn,
+        obtainmentTimestamp: tokenInfo.obtainmentTimestamp
+      }, ['channel']);
+
+      logger.debug(`Re-added channel user ${userId} to auth provider from database`);
+    }
+  }
+
+  /**
+   * Start the proactive token refresh interval.
+   * Refreshes all registered user tokens every 3 hours to keep them fresh.
+   */
+  _startProactiveRefresh() {
+    this._proactiveRefreshInterval = setInterval(async () => {
+      logger.info('Starting proactive token refresh cycle');
+
+      const userIds = [this.botTwitchId, ...this.channelTwitchIds].filter(Boolean);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const userId of userIds) {
+        try {
+          await this.authProvider.refreshAccessTokenForUser(userId);
+          successCount++;
+        } catch (error) {
+          failCount++;
+          logger.warn(`Proactive refresh failed for user ${userId}`, { error: error.message });
+          // onRefreshFailure handler will take care of retries
+        }
+      }
+
+      logger.info(`Proactive token refresh completed: ${successCount} succeeded, ${failCount} failed out of ${userIds.length} users`);
+    }, PROACTIVE_REFRESH_INTERVAL_MS);
+
+    // Don't prevent process exit
+    if (this._proactiveRefreshInterval.unref) {
+      this._proactiveRefreshInterval.unref();
+    }
+
+    logger.debug('Proactive token refresh interval started (every 3 hours)');
   }
 
   /**

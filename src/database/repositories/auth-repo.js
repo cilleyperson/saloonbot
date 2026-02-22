@@ -190,6 +190,7 @@ function getAllChannelAuthsWithTwitchId() {
       ca.refresh_token,
       ca.scopes,
       ca.expires_at,
+      ca.updated_at,
       c.twitch_id as channel_twitch_id
     FROM channel_auth ca
     LEFT JOIN channels c ON c.id = ca.channel_id
@@ -322,7 +323,7 @@ function saveBotAuthWithTwitchId(twitchUserId, botUsername, accessToken, refresh
 function getBotAuthWithTwitchId() {
   const db = getDb();
   const auth = db.prepare(`
-    SELECT twitch_user_id, bot_username, access_token, refresh_token, scopes
+    SELECT twitch_user_id, bot_username, access_token, refresh_token, scopes, expires_at, updated_at
     FROM bot_auth ORDER BY id DESC LIMIT 1
   `).get();
 

@@ -216,6 +216,9 @@ class BotCore {
         logger.debug('Chat client disconnected');
       }
 
+      // Shutdown auth manager (clears proactive refresh interval)
+      authManager.shutdown();
+
       this.running = false;
       logger.info('Bot stopped');
     } catch (error) {
