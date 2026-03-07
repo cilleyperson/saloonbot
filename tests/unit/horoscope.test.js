@@ -115,9 +115,10 @@ describe('Horoscope Repository', () => {
     });
 
     it('should return false for yesterday\'s date', () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const todayStr = horoscopeRepo.getCurrentDateET();
+      const parts = todayStr.split('-');
+      const yesterday = new Date(parts[0], parseInt(parts[1]) - 1, parseInt(parts[2]) - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
       expect(horoscopeRepo.isCacheValid(yesterdayStr)).toBe(false);
     });
 

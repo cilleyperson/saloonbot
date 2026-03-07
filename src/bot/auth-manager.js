@@ -12,7 +12,6 @@ const logger = createChildLogger('auth-manager');
  * This architecture enables EventSub to find tokens for any registered user
  * by their Twitch ID, which is required for channel-specific subscriptions.
  */
-const PROACTIVE_REFRESH_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
 const RETRY_BASE_DELAY_MS = 5000; // 5 seconds
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -23,7 +22,6 @@ class AuthManager {
     this.botUsername = null;           // Bot's Twitch username
     this.channelTwitchIds = new Set(); // Track registered channel Twitch IDs
     this.initialized = false;
-    this._proactiveRefreshInterval = null;
     this._pendingRetries = new Map();  // Track in-flight retries by userId
   }
 
@@ -58,9 +56,6 @@ class AuthManager {
     // Load all channel tokens
     await this._loadAllChannelAuths();
 
-    // Start proactive token refresh interval
-    this._startProactiveRefresh();
-
     this.initialized = true;
     logger.info(`Auth manager initialized with ${this.channelTwitchIds.size} channel tokens`);
   }
@@ -69,11 +64,6 @@ class AuthManager {
    * Shutdown the auth manager - clear intervals and pending retries
    */
   shutdown() {
-    if (this._proactiveRefreshInterval) {
-      clearInterval(this._proactiveRefreshInterval);
-      this._proactiveRefreshInterval = null;
-    }
-
     // Clear any pending retry timeouts
     for (const [userId, timeoutId] of this._pendingRetries) {
       clearTimeout(timeoutId);
@@ -175,16 +165,19 @@ class AuthManager {
       : null;
 
     if (userId === this.botTwitchId) {
+      const existingBotAuth = authRepo.getBotAuthWithTwitchId();
       authRepo.updateBotAuth({
         accessToken: newTokenData.accessToken,
-        refreshToken: newTokenData.refreshToken,
+        refreshToken: newTokenData.refreshToken || (existingBotAuth ? existingBotAuth.refresh_token : null),
         expiresAt
       });
       logger.debug('Bot token updated in database');
     } else {
+      const channelAuths = authRepo.getAllChannelAuthsWithTwitchId();
+      const existingAuth = channelAuths.find(a => (a.twitch_user_id || a.channel_twitch_id) === userId);
       authRepo.updateChannelAuthByTwitchId(userId, {
         accessToken: newTokenData.accessToken,
-        refreshToken: newTokenData.refreshToken,
+        refreshToken: newTokenData.refreshToken || (existingAuth ? existingAuth.refresh_token : null),
         expiresAt
       });
       logger.debug(`Channel token updated in database for Twitch user ${userId}`);
@@ -204,7 +197,11 @@ class AuthManager {
     }
 
     const expiresAtMs = new Date(expiresAt).getTime();
-    const obtainmentTimestamp = updatedAt ? new Date(updatedAt).getTime() : Date.now();
+    
+    // Fix UTC parsing for SQLite CURRENT_TIMESTAMP (YYYY-MM-DD HH:MM:SS)
+    const formattedUpdatedAt = updatedAt && !updatedAt.endsWith('Z') ? `${updatedAt}Z` : updatedAt;
+    const obtainmentTimestamp = formattedUpdatedAt ? new Date(formattedUpdatedAt).getTime() : Date.now();
+    
     const expiresIn = Math.max(0, Math.floor((expiresAtMs - obtainmentTimestamp) / 1000));
 
     return { expiresIn, obtainmentTimestamp };
@@ -315,39 +312,7 @@ class AuthManager {
     }
   }
 
-  /**
-   * Start the proactive token refresh interval.
-   * Refreshes all registered user tokens every 3 hours to keep them fresh.
-   */
-  _startProactiveRefresh() {
-    this._proactiveRefreshInterval = setInterval(async () => {
-      logger.info('Starting proactive token refresh cycle');
 
-      const userIds = [this.botTwitchId, ...this.channelTwitchIds].filter(Boolean);
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const userId of userIds) {
-        try {
-          await this.authProvider.refreshAccessTokenForUser(userId);
-          successCount++;
-        } catch (error) {
-          failCount++;
-          logger.warn(`Proactive refresh failed for user ${userId}`, { error: error.message });
-          // onRefreshFailure handler will take care of retries
-        }
-      }
-
-      logger.info(`Proactive token refresh completed: ${successCount} succeeded, ${failCount} failed out of ${userIds.length} users`);
-    }, PROACTIVE_REFRESH_INTERVAL_MS);
-
-    // Don't prevent process exit
-    if (this._proactiveRefreshInterval.unref) {
-      this._proactiveRefreshInterval.unref();
-    }
-
-    logger.debug('Proactive token refresh interval started (every 3 hours)');
-  }
 
   /**
    * Get the single auth provider (used by BotCore)
