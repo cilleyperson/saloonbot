@@ -293,7 +293,7 @@ function saveBotAuth(tokens) {
  * @param {string} scopes - Space-separated scopes
  * @returns {Object} Saved auth record
  */
-function saveBotAuthWithTwitchId(twitchUserId, botUsername, accessToken, refreshToken, scopes) {
+function saveBotAuthWithTwitchId(twitchUserId, botUsername, accessToken, refreshToken, scopes, expiresAt = null) {
   const db = getDb();
 
   const scopesStr = Array.isArray(scopes) ? scopes.join(' ') : scopes;
@@ -306,11 +306,11 @@ function saveBotAuthWithTwitchId(twitchUserId, botUsername, accessToken, refresh
   db.prepare('DELETE FROM bot_auth').run();
 
   const stmt = db.prepare(`
-    INSERT INTO bot_auth (twitch_user_id, bot_username, access_token, refresh_token, scopes)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO bot_auth (twitch_user_id, bot_username, access_token, refresh_token, scopes, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(twitchUserId, botUsername, encryptedAccessToken, encryptedRefreshToken, scopesStr);
+  stmt.run(twitchUserId, botUsername, encryptedAccessToken, encryptedRefreshToken, scopesStr, expiresAt);
   logger.info(`Saved bot auth for ${botUsername} (Twitch ID: ${twitchUserId})`);
 
   return getBotAuthWithTwitchId();

@@ -13,7 +13,7 @@ const logger = createChildLogger('auth-manager');
  * by their Twitch ID, which is required for channel-specific subscriptions.
  */
 const RETRY_BASE_DELAY_MS = 5000; // 5 seconds
-const MAX_RETRY_ATTEMPTS = 3;
+const MAX_RETRY_ATTEMPTS = 8;
 
 class AuthManager {
   constructor() {
@@ -133,6 +133,14 @@ class AuthManager {
 
       try {
         const tokenInfo = this._computeTokenExpiry(auth.expires_at, auth.updated_at);
+        const intents = ['channel'];
+
+        if (twitchId === this.botTwitchId) {
+          logger.info(`Channel ${auth.channel_id} (Twitch ID: ${twitchId}) is the same as the bot. Merging intents instead of overwriting token.`);
+          this.authProvider.addIntentsToUser(twitchId, intents);
+          this.channelTwitchIds.add(twitchId);
+          continue;
+        }
 
         this.authProvider.addUser(twitchId, {
           accessToken: auth.access_token,
@@ -140,7 +148,7 @@ class AuthManager {
           scope: auth.scopes ? auth.scopes.split(' ') : [],
           expiresIn: tokenInfo.expiresIn,
           obtainmentTimestamp: tokenInfo.obtainmentTimestamp
-        }, ['channel']); // Channels don't need chat intents
+        }, intents);
 
         this.channelTwitchIds.add(twitchId);
         logger.debug(`Loaded channel token for Twitch ID ${twitchId}`);
@@ -164,6 +172,8 @@ class AuthManager {
       ? new Date(Date.now() + newTokenData.expiresIn * 1000).toISOString()
       : null;
 
+    let updated = false;
+
     if (userId === this.botTwitchId) {
       const existingBotAuth = authRepo.getBotAuthWithTwitchId();
       authRepo.updateBotAuth({
@@ -172,15 +182,25 @@ class AuthManager {
         expiresAt
       });
       logger.debug('Bot token updated in database');
-    } else {
+      updated = true;
+    } 
+
+    if (this.channelTwitchIds.has(userId)) {
       const channelAuths = authRepo.getAllChannelAuthsWithTwitchId();
       const existingAuth = channelAuths.find(a => (a.twitch_user_id || a.channel_twitch_id) === userId);
-      authRepo.updateChannelAuthByTwitchId(userId, {
-        accessToken: newTokenData.accessToken,
-        refreshToken: newTokenData.refreshToken || (existingAuth ? existingAuth.refresh_token : null),
-        expiresAt
-      });
-      logger.debug(`Channel token updated in database for Twitch user ${userId}`);
+      if (existingAuth) {
+        authRepo.updateChannelAuthByTwitchId(userId, {
+          accessToken: newTokenData.accessToken,
+          refreshToken: newTokenData.refreshToken || (existingAuth ? existingAuth.refresh_token : null),
+          expiresAt
+        });
+        logger.debug(`Channel token updated in database for Twitch user ${userId}`);
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      logger.warn(`Token refreshed for unknown user ${userId}, no database rows updated`);
     }
   }
 
@@ -381,11 +401,21 @@ class AuthManager {
    * @param {string} botUsername - Bot's Twitch username
    */
   async saveBotAuth(tokenData, twitchId, botUsername) {
-    const { accessToken, refreshToken, scope } = tokenData;
+    const { accessToken, refreshToken, scope, expiresIn } = tokenData;
     const scopeArray = Array.isArray(scope) ? scope : (scope ? scope.split(' ') : []);
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
 
     // Save to database with Twitch ID
-    authRepo.saveBotAuthWithTwitchId(twitchId, botUsername, accessToken, refreshToken, scopeArray.join(' '));
+    authRepo.saveBotAuthWithTwitchId(twitchId, botUsername, accessToken, refreshToken, scopeArray.join(' '), expiresAt);
+
+    const intents = ['chat'];
+
+    // If bot is also registered as a channel, ensure we sync the new token to channel_auth to prevent overwrites later
+    if (this.channelTwitchIds.has(twitchId)) {
+      intents.push('channel');
+      authRepo.updateChannelAuthByTwitchId(twitchId, { accessToken, refreshToken, expiresAt });
+      logger.debug(`Synchronized newly saved bot token to channel_auth for Twitch ID ${twitchId}`);
+    }
 
     // Add to auth provider
     this.authProvider.addUser(twitchId, {
@@ -394,7 +424,7 @@ class AuthManager {
       scope: scopeArray,
       expiresIn: 0,
       obtainmentTimestamp: Date.now()
-    }, ['chat']);
+    }, intents);
 
     this.botTwitchId = twitchId;
     this.botUsername = botUsername;
@@ -411,16 +441,24 @@ class AuthManager {
   async addChannelAuth(channelId, twitchId, tokenData) {
     const { accessToken, refreshToken, scopes, expiresIn } = tokenData;
     const scopeArray = Array.isArray(scopes) ? scopes : (scopes ? scopes.split(' ') : []);
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
 
     // Save to database with Twitch ID
     authRepo.saveChannelAuth(channelId, twitchId, {
       accessToken,
       refreshToken,
       scopes: scopeArray.join(' '),
-      expiresAt: expiresIn
-        ? new Date(Date.now() + expiresIn * 1000).toISOString()
-        : null
+      expiresAt
     });
+
+    const intents = ['channel'];
+
+    // If this channel is the bot, sync token back to bot_auth and keep chat intents
+    if (twitchId === this.botTwitchId) {
+      intents.push('chat');
+      authRepo.updateBotAuth({ accessToken, refreshToken, expiresAt });
+      logger.debug(`Synchronized newly saved channel token to bot_auth for Twitch ID ${twitchId}`);
+    }
 
     // Add to auth provider
     this.authProvider.addUser(twitchId, {
@@ -429,7 +467,7 @@ class AuthManager {
       scope: scopeArray,
       expiresIn: 0,
       obtainmentTimestamp: Date.now()
-    }, ['channel']);
+    }, intents);
 
     this.channelTwitchIds.add(twitchId);
 
