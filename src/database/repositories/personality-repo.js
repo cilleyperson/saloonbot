@@ -33,7 +33,7 @@ const EVENT_TYPES = [
 const STARTER_TEMPLATES = {
   '8ball_response': ['{response}'],
   'raid_shoutout': ['@{raider} is raiding with {viewers} viewers! Check them out at https://twitch.tv/{raider}'],
-  'counter_increment': ['{counter} count: {count} {emoji}'],
+  'counter_increment': ['{word} count: {count} {emoji}'],
   'sub_notification': ['Thank you for subscribing, @{user}!'],
   'resub_notification': ['Thank you for resubscribing for {months} months, @{user}!'],
   'gift_sub_notification': ['Thank you {gifter} for gifting {gift_count} subs!'],

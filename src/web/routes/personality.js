@@ -137,6 +137,11 @@ router.post('/:id/delete', (req, res) => {
     return res.redirect('/personality');
   }
 
+  if (pack.is_default) {
+    req.flash('error', 'Cannot delete the default personality pack');
+    return res.redirect('/personality');
+  }
+
   try {
     const deactivated = personalityRepo.deletePack(packId);
     let msg = `Pack "${pack.name}" deleted`;

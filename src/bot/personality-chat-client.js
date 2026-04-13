@@ -1,5 +1,5 @@
 const personalityRepo = require('../database/repositories/personality-repo');
-const { formatTemplate } = require('../utils/template');
+const { formatTemplate, sanitizeMessage } = require('../utils/template');
 const { splitMessage } = require('../utils/message-splitter');
 const { createChildLogger } = require('../utils/logger');
 
@@ -27,9 +27,13 @@ class PersonalityChatClient {
    */
   async sayAs(channelName, message, eventType, vars = {}) {
     const themed = this.applyPersonality(channelName, message, eventType, vars);
-    const parts = splitMessage(themed);
-    for (const part of parts) {
-      await this.chatClient.say(channelName, part);
+    const sanitized = sanitizeMessage(themed);
+    const parts = splitMessage(sanitized);
+    for (let i = 0; i < parts.length; i++) {
+      await this.chatClient.say(channelName, parts[i]);
+      if (parts.length > 1 && i < parts.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
   }
 
