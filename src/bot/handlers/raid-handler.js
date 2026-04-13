@@ -59,9 +59,15 @@ class RaidHandler {
         channel: channel.display_name || channel.twitch_username
       });
 
-      // Send the message
+      // Send the message (themed through personality pipeline)
       const sanitized = sanitizeMessage(message);
-      await this.chatClient.say(channel.twitch_username, sanitized);
+      await this.chatClient.sayAs(channel.twitch_username, sanitized, 'raid_shoutout', {
+        raider: event.raidingBroadcasterName,
+        raider_display: event.raidingBroadcasterDisplayName,
+        viewers: event.viewers,
+        game: raiderGame,
+        channel: channel.display_name || channel.twitch_username
+      });
 
       logger.info(`Sent raid shoutout for ${event.raidingBroadcasterDisplayName} in ${channel.twitch_username}`);
 

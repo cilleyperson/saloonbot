@@ -291,7 +291,11 @@ class DetectionPipeline extends EventEmitter {
 
     // Send message
     try {
-      await this.botCore.say(this.channel.twitch_username, message);
+      await this.botCore.say(this.channel.twitch_username, message, 'detection_alert', {
+        object: detection.class,
+        confidence: confidence.toFixed(2),
+        channel: this.channel.twitch_username
+      });
       this._stats.messagesSent++;
       this._stats.lastDetection = {
         objectClass,

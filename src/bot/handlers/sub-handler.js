@@ -33,15 +33,18 @@ class SubHandler {
     }
 
     try {
-      const message = formatTemplate(settings.sub_notification_template, {
+      const templateVars = {
+        user: event.userDisplayName,
         subscriber: event.userName,
         subscriber_display: event.userDisplayName,
         tier: formatTier(event.tier),
+        months: 1,
         channel: channel.display_name || channel.twitch_username
-      });
+      };
 
+      const message = formatTemplate(settings.sub_notification_template, templateVars);
       const sanitized = sanitizeMessage(message);
-      await this.chatClient.say(channel.twitch_username, sanitized);
+      await this.chatClient.sayAs(channel.twitch_username, sanitized, 'sub_notification', templateVars);
 
       logger.info(`Sent sub notification for ${event.userDisplayName} in ${channel.twitch_username}`);
     } catch (error) {
@@ -73,7 +76,8 @@ class SubHandler {
     }
 
     try {
-      const message = formatTemplate(settings.resub_notification_template, {
+      const templateVars = {
+        user: event.userDisplayName,
         subscriber: event.userName,
         subscriber_display: event.userDisplayName,
         tier: formatTier(event.tier),
@@ -81,10 +85,11 @@ class SubHandler {
         streak: event.streakMonths || 0,
         message: event.messageText || '',
         channel: channel.display_name || channel.twitch_username
-      });
+      };
 
+      const message = formatTemplate(settings.resub_notification_template, templateVars);
       const sanitized = sanitizeMessage(message);
-      await this.chatClient.say(channel.twitch_username, sanitized);
+      await this.chatClient.sayAs(channel.twitch_username, sanitized, 'resub_notification', templateVars);
 
       logger.info(`Sent resub notification for ${event.userDisplayName} (${event.cumulativeMonths} months) in ${channel.twitch_username}`);
     } catch (error) {
@@ -120,17 +125,19 @@ class SubHandler {
       const isAnonymous = event.isAnonymous;
       const gifterName = isAnonymous ? 'An anonymous gifter' : event.gifterDisplayName;
 
-      const message = formatTemplate(settings.gift_sub_notification_template, {
+      const templateVars = {
         gifter: gifterName,
         gifter_display: gifterName,
         gift_count: event.amount || 1,
         tier: formatTier(event.tier),
+        recipient: '',
         subscriber: '', // Community gifts don't have a specific recipient
         channel: channel.display_name || channel.twitch_username
-      });
+      };
 
+      const message = formatTemplate(settings.gift_sub_notification_template, templateVars);
       const sanitized = sanitizeMessage(message);
-      await this.chatClient.say(channel.twitch_username, sanitized);
+      await this.chatClient.sayAs(channel.twitch_username, sanitized, 'gift_sub_notification', templateVars);
 
       logger.info(`Sent gift sub notification from ${gifterName} (${event.amount} subs) in ${channel.twitch_username}`);
     } catch (error) {

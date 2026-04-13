@@ -12,6 +12,8 @@ const dadjokeApi = require('../../services/dadjoke-api');
 const horoscopeApi = require('../../services/horoscope-api');
 const randomfactApi = require('../../services/randomfact-api');
 const triviaApi = require('../../services/trivia-api');
+const personalityRepo = require('../../database/repositories/personality-repo');
+const channelRepo = require('../../database/repositories/channel-repo');
 const { splitMessage } = require('../../utils/message-splitter');
 const { createChildLogger } = require('../../utils/logger');
 
@@ -179,6 +181,9 @@ class PredefinedCommandHandler {
         case 'horoscope':
           await this.handleHoroscope(chatName, user, args);
           break;
+        case 'personality':
+          await this.handlePersonality(channelId, chatName, user, args, msg);
+          break;
         case 'randomfact':
           await this.handleRandomfact(chatName, user);
           break;
@@ -222,23 +227,16 @@ class PredefinedCommandHandler {
       const advice = await adviceApi.fetchAdvice();
 
       if (!advice) {
-        await this.chatClient.say(chatName, `💡 @${user}, I'm fresh out of advice right now!`);
+        await this.chatClient.sayAs(chatName, `💡 @${user}, I'm fresh out of advice right now!`, 'error_response', { original: `@${user}, I'm fresh out of advice right now!` });
         return;
       }
 
-      // Split the advice if it's too long for Twitch chat
-      const chunks = splitMessage(`💡 ${advice}`);
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500);
-        }
-      }
+      await this.chatClient.sayAs(chatName, `💡 ${advice}`, 'advice_intro', { quote: advice, author: '' });
       logger.debug(`!advice executed for ${user} in ${chatName}`);
 
     } catch (error) {
       logger.error('Advice API error', { error: error.message });
-      await this.chatClient.say(chatName, `💡 @${user}, the advice service is taking a break. Try again later!`);
+      await this.chatClient.sayAs(chatName, `💡 @${user}, the advice service is taking a break. Try again later!`, 'error_response', { original: `@${user}, the advice service is taking a break. Try again later!` });
     }
   }
 
@@ -251,11 +249,11 @@ class PredefinedCommandHandler {
     const response = magic8ballRepo.getRandomResponse();
 
     if (!response) {
-      await this.chatClient.say(chatName, `🎱 @${user}, the Magic 8 Ball is unavailable.`);
+      await this.chatClient.sayAs(chatName, `🎱 @${user}, the Magic 8 Ball is unavailable.`, 'error_response', { original: `@${user}, the Magic 8 Ball is unavailable.` });
       return;
     }
 
-    await this.chatClient.say(chatName, `🎱 @${user}, the Magic 8 Ball says: ${response.response_text}`);
+    await this.chatClient.sayAs(chatName, `🎱 @${user}, the Magic 8 Ball says: ${response.response_text}`, '8ball_response', { response: response.response_text });
     logger.debug(`!ball executed for ${user} in ${chatName}`);
   }
 
@@ -329,23 +327,16 @@ class PredefinedCommandHandler {
       const joke = await dadjokeApi.fetchDadJoke();
 
       if (!joke) {
-        await this.chatClient.say(chatName, `👨 @${user}, I'm fresh out of dad jokes right now!`);
+        await this.chatClient.sayAs(chatName, `👨 @${user}, I'm fresh out of dad jokes right now!`, 'error_response', { original: `@${user}, I'm fresh out of dad jokes right now!` });
         return;
       }
 
-      // Split the joke if it's too long for Twitch chat
-      const chunks = splitMessage(`👨 ${joke}`);
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500);
-        }
-      }
+      await this.chatClient.sayAs(chatName, `👨 ${joke}`, 'dadjoke_intro', { joke });
       logger.debug(`!dadjoke executed for ${user} in ${chatName}`);
 
     } catch (error) {
       logger.error('Dad joke API error', { error: error.message });
-      await this.chatClient.say(chatName, `👨 @${user}, the dad joke service is taking a nap. Try again later!`);
+      await this.chatClient.sayAs(chatName, `👨 @${user}, the dad joke service is taking a nap. Try again later!`, 'error_response', { original: `@${user}, the dad joke service is taking a nap. Try again later!` });
     }
   }
 
@@ -384,13 +375,7 @@ class PredefinedCommandHandler {
         definition: customDef.definition
       }, true);
 
-      const chunks = splitMessage(message);
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500); // Small delay between messages
-        }
-      }
+      await this.chatClient.sayAs(chatName, message, 'define_response', { word: customDef.word, definition: customDef.definition });
       logger.debug(`!define executed for ${user} in ${chatName} (custom: ${word})`);
       return;
     }
@@ -405,19 +390,12 @@ class PredefinedCommandHandler {
       }
 
       const message = dictionaryApi.formatDefinition(definition);
-      const chunks = splitMessage(message);
-
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500);
-        }
-      }
+      await this.chatClient.sayAs(chatName, message, 'define_response', { word: definition.word, definition: definition.definition });
       logger.debug(`!define executed for ${user} in ${chatName} (API: ${word})`);
 
     } catch (error) {
       logger.error(`Dictionary API error for word: ${word}`, { error: error.message });
-      await this.chatClient.say(chatName, `📖 @${user}, the dictionary service is currently unavailable.`);
+      await this.chatClient.sayAs(chatName, `📖 @${user}, the dictionary service is currently unavailable.`, 'error_response', { original: `@${user}, the dictionary service is currently unavailable.` });
     }
   }
 
@@ -448,21 +426,13 @@ class PredefinedCommandHandler {
 
       // Format and send the response
       const response = horoscopeApi.formatResponse(result.sign, result.text, result.emoji);
-
-      // Split if too long for Twitch chat
-      const chunks = splitMessage(response);
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500);
-        }
-      }
+      await this.chatClient.sayAs(chatName, response, 'horoscope_intro', { sign: result.sign, horoscope: result.text });
 
       logger.debug(`!horoscope executed for ${user} in ${chatName} (sign: ${result.sign}, cached: ${result.fromCache})`);
 
     } catch (error) {
       logger.error('Horoscope error', { error: error.message, user, chatName });
-      await this.chatClient.say(chatName, `🔮 @${user}, the horoscope service is temporarily unavailable. Please try again later.`);
+      await this.chatClient.sayAs(chatName, `🔮 @${user}, the horoscope service is temporarily unavailable. Please try again later.`, 'error_response', { original: `@${user}, the horoscope service is temporarily unavailable.` });
     }
   }
 
@@ -476,23 +446,16 @@ class PredefinedCommandHandler {
       const fact = await randomfactApi.fetchRandomFact();
 
       if (!fact) {
-        await this.chatClient.say(chatName, `🧠 @${user}, I couldn't find a fact right now!`);
+        await this.chatClient.sayAs(chatName, `🧠 @${user}, I couldn't find a fact right now!`, 'error_response', { original: `@${user}, I couldn't find a fact right now!` });
         return;
       }
 
-      // Split the fact if it's too long for Twitch chat
-      const chunks = splitMessage(`🧠 ${fact}`);
-      for (const chunk of chunks) {
-        await this.chatClient.say(chatName, chunk);
-        if (chunks.length > 1) {
-          await this.delay(500);
-        }
-      }
+      await this.chatClient.sayAs(chatName, `🧠 ${fact}`, 'fact_intro', { fact });
       logger.debug(`!randomfact executed for ${user} in ${chatName}`);
 
     } catch (error) {
       logger.error('Random fact API error', { error: error.message });
-      await this.chatClient.say(chatName, `🧠 @${user}, the fact service is taking a break. Try again later!`);
+      await this.chatClient.sayAs(chatName, `🧠 @${user}, the fact service is taking a break. Try again later!`, 'error_response', { original: `@${user}, the fact service is taking a break. Try again later!` });
     }
   }
 
@@ -552,7 +515,12 @@ class PredefinedCommandHandler {
       message = `🎮 ${userEmoji} vs ${botEmoji} - I win! Better luck next time, @${user}. ${statsText}`;
     }
 
-    await this.chatClient.say(chatName, message);
+    await this.chatClient.sayAs(chatName, message, 'rps_result', {
+      user,
+      user_choice: userChoice,
+      bot_choice: botChoice,
+      result: result === 'win' ? 'You win' : result === 'loss' ? 'I win' : 'Tie'
+    });
     logger.debug(`!rps executed for ${user} in ${chatName} (${result})`);
   }
 
@@ -623,7 +591,11 @@ class PredefinedCommandHandler {
 
       // Send all messages first, then set state
       // This prevents race conditions with answer checking during delays
-      await this.chatClient.say(chatName, `🎯 TRIVIA TIME! ${questionData.question}`);
+      await this.chatClient.sayAs(chatName, `🎯 TRIVIA TIME! ${questionData.question}`, 'trivia_question', {
+        category: questionData.category || 'General',
+        difficulty: questionData.difficulty || 'Medium',
+        question: questionData.question
+      });
       await this.chatClient.say(chatName, `📝 ${answersText}`);
       await this.chatClient.say(chatName, `⏱️ You have 30 seconds! Type A, B, C, or D to answer!`);
 
@@ -634,7 +606,7 @@ class PredefinedCommandHandler {
       triviaState.timeout = setTimeout(async () => {
         if (this.activeTrivia.get(chatName) === triviaState) {
           this.activeTrivia.delete(chatName);
-          await this.chatClient.say(chatName, `⏱️ Time's up! The correct answer was ${correctKey}: ${questionData.correctAnswer}`);
+          await this.chatClient.sayAs(chatName, `⏱️ Time's up! The correct answer was ${correctKey}: ${questionData.correctAnswer}`, 'trivia_timeout', { answer: questionData.correctAnswer });
           logger.debug(`Trivia timeout in ${chatName}`);
         }
       }, TRIVIA_TIMEOUT_MS);
@@ -699,8 +671,9 @@ class PredefinedCommandHandler {
         logger.error('Failed to record trivia stats', { error: statsError.message });
       }
 
-      await this.chatClient.say(chatName,
-        `🎉 @${user} got it right! The answer was ${triviaState.correctKey}: ${triviaState.correctAnswer}${statsText}`
+      await this.chatClient.sayAs(chatName,
+        `🎉 @${user} got it right! The answer was ${triviaState.correctKey}: ${triviaState.correctAnswer}${statsText}`,
+        'trivia_correct', { user, answer: triviaState.correctAnswer, points: statsText ? '1' : '0' }
       );
       logger.debug(`Trivia won by ${user} in ${chatName}`);
       return true;
@@ -738,6 +711,63 @@ class PredefinedCommandHandler {
 
     await this.chatClient.say(chatName, message);
     logger.debug(`!triviastats executed for ${user} in ${chatName}`);
+  }
+
+  /**
+   * Handle !personality command (switch personality pack)
+   * @param {number} channelId - Channel ID
+   * @param {string} chatName - Chat to respond in
+   * @param {string} user - User who triggered the command
+   * @param {string[]} args - Command arguments
+   * @param {Object} msg - Message object
+   */
+  async handlePersonality(channelId, chatName, user, args, msg) {
+    // Mod-only command
+    if (!msg.userInfo?.isMod && !msg.userInfo?.isBroadcaster) {
+      await this.chatClient.say(chatName, `🎭 @${user}, only moderators can change the personality.`);
+      return;
+    }
+
+    if (args.length === 0) {
+      // Show current personality
+      const currentPackId = personalityRepo.getActivePackForChannel(chatName);
+      if (currentPackId) {
+        const pack = personalityRepo.getPackById(currentPackId);
+        await this.chatClient.say(chatName, `🎭 Current personality: ${pack ? pack.name : 'Unknown'}. Use !personality <name> to switch or !personality off to disable.`);
+      } else {
+        const packs = personalityRepo.getAllPacks();
+        const packNames = packs.map(p => p.name.toLowerCase()).join(', ');
+        await this.chatClient.say(chatName, `🎭 No personality active. Available: ${packNames || 'none'}. Use !personality <name> to activate.`);
+      }
+      return;
+    }
+
+    const packName = args.join(' ').toLowerCase();
+
+    // Handle "off" to disable
+    if (packName === 'off' || packName === 'none' || packName === 'disable') {
+      personalityRepo.setActivePackForChannel(channelId, null);
+      await this.chatClient.say(chatName, `🎭 Personality disabled. Bot messages will use default responses.`);
+      logger.info(`Personality disabled for channel ${chatName} by ${user}`);
+      return;
+    }
+
+    // Find the pack
+    const pack = personalityRepo.getPackByName(packName);
+    if (!pack) {
+      const packs = personalityRepo.getAllPacks();
+      const packNames = packs.map(p => p.name.toLowerCase()).join(', ');
+      await this.chatClient.say(chatName, `🎭 Pack "${args.join(' ')}" not found. Available: ${packNames || 'none'}`);
+      return;
+    }
+
+    // Activate the pack
+    personalityRepo.setActivePackForChannel(channelId, pack.id);
+    // Send confirmation through the new personality
+    await this.chatClient.sayAs(chatName, `🎭 Switched to ${pack.name} personality!`, 'command_response', {
+      user, response: `Switched to ${pack.name} personality!`, command: 'personality'
+    });
+    logger.info(`Personality set to "${pack.name}" for channel ${chatName} by ${user}`);
   }
 
   /**
