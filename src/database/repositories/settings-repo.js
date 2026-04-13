@@ -90,7 +90,8 @@ function updateSettings(channelId, data) {
     'sub_notification_enabled',
     'sub_notification_template',
     'resub_notification_template',
-    'gift_sub_notification_template'
+    'gift_sub_notification_template',
+    'active_personality_pack_id'
   ];
 
   const updates = [];
