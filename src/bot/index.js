@@ -8,6 +8,7 @@ const RaidHandler = require('./handlers/raid-handler');
 const SubHandler = require('./handlers/sub-handler');
 const CommandHandler = require('./handlers/command-handler');
 const PredefinedCommandHandler = require('./handlers/predefined-command-handler');
+const PersonalityChatClient = require('./personality-chat-client');
 const { getOrchestrator } = require('../services/detection-orchestrator');
 const { createChildLogger } = require('../utils/logger');
 
@@ -19,7 +20,8 @@ const logger = createChildLogger('bot-core');
 class BotCore {
   constructor() {
     this.apiClient = null;
-    this.chatClient = null;
+    this.chatClient = null;        // PersonalityChatClient wrapper
+    this.rawChatClient = null;     // Underlying Twurple ChatClient
     this.eventSubListener = null;
     this.channelManager = new ChannelManager();
     this.eventHandler = new EventHandler();
@@ -49,11 +51,14 @@ class BotCore {
     this.apiClient = new ApiClient({ authProvider });
 
     // Create Chat client (uses same auth provider)
-    this.chatClient = new ChatClient({
+    this.rawChatClient = new ChatClient({
       authProvider,
       channels: [], // We'll join channels dynamically
       isAlwaysMod: false
     });
+
+    // Wrap with personality layer - handlers use this for themed messages
+    this.chatClient = new PersonalityChatClient(this.rawChatClient);
 
     // Create EventSub listener
     // The apiClient has access to all channel tokens via the multi-user auth provider
@@ -230,17 +235,23 @@ class BotCore {
    * Send a message to a channel
    * @param {string} channel - Channel name
    * @param {string} message - Message to send
+   * @param {string} [eventType] - Optional event type for personality theming
+   * @param {Object} [vars] - Optional template variables for personality
    */
-  async say(channel, message) {
+  async say(channel, message, eventType, vars) {
     if (!this.chatClient) {
       logger.warn('Chat client not available');
       return;
     }
 
     try {
-      // Ensure channel has # prefix
-      const channelName = channel.startsWith('#') ? channel : `#${channel}`;
-      await this.chatClient.say(channelName.slice(1), message);
+      // Ensure channel has # prefix removed
+      const channelName = channel.startsWith('#') ? channel.slice(1) : channel;
+      if (eventType) {
+        await this.chatClient.sayAs(channelName, message, eventType, vars);
+      } else {
+        await this.chatClient.say(channelName, message);
+      }
     } catch (error) {
       logger.error('Failed to send message', { channel, error: error.message });
     }

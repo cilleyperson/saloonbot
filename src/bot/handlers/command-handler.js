@@ -167,7 +167,11 @@ class CommandHandler {
       const responseWithEmoji = formatWithEmoji(response, cmd.emoji, cmd.emoji_position);
 
       const sanitized = sanitizeMessage(responseWithEmoji);
-      await this.chatClient.say(chatName, sanitized);
+      await this.chatClient.sayAs(chatName, sanitized, 'command_response', {
+        user,
+        response: sanitized,
+        command: command.name
+      });
 
       // Update cooldown
       this.setCooldown(cooldownKey);
@@ -221,7 +225,12 @@ class CommandHandler {
       const responseWithEmoji = formatWithEmoji(response, counter.emoji, counter.emoji_position);
 
       const sanitized = sanitizeMessage(responseWithEmoji);
-      await this.chatClient.say(chatName, sanitized);
+      await this.chatClient.sayAs(chatName, sanitized, 'counter_increment', {
+        word: counterName,
+        count: newCount,
+        emoji: counter.emoji || '',
+        user
+      });
 
       logger.debug(`Incremented ${counterName}++ to ${newCount} in ${chatName}`);
     } catch (error) {

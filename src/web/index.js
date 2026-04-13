@@ -25,6 +25,7 @@ const chatMembershipRoutes = require('./routes/chat-memberships');
 const predefinedCommandRoutes = require('./routes/predefined-commands');
 const twoFactorRoutes = require('./routes/two-factor');
 const objectDetectionRoutes = require('./routes/object-detection');
+const personalityRoutes = require('./routes/personality');
 
 const logger = createChildLogger('web');
 
@@ -172,6 +173,9 @@ function createApp() {
 
   // Object detection routes
   app.use('/detection', requireAuth, objectDetectionRoutes);
+
+  // Personality pack routes
+  app.use('/personality', requireAuth, personalityRoutes);
 
   // 404 handler
   app.use((req, res) => {

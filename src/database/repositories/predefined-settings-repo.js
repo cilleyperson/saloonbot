@@ -6,7 +6,7 @@ const logger = createChildLogger('predefined-settings-repo');
 /**
  * List of available predefined commands
  */
-const PREDEFINED_COMMANDS = ['advice', 'ball', 'botcommands', 'dadjoke', 'define', 'horoscope', 'randomfact', 'rps', 'rpsstats', 'trivia', 'triviastats'];
+const PREDEFINED_COMMANDS = ['advice', 'ball', 'botcommands', 'dadjoke', 'define', 'horoscope', 'personality', 'randomfact', 'rps', 'rpsstats', 'trivia', 'triviastats'];
 
 /**
  * Valid chat scope types
@@ -270,6 +270,13 @@ function getCommandInfo(commandName) {
       trigger: '!horoscope [sign]',
       description: 'Get your daily horoscope reading — provide a zodiac sign or get a random one',
       emoji: '🔮'
+    },
+    personality: {
+      name: 'personality',
+      displayName: 'Personality',
+      trigger: '!personality <name|off>',
+      description: 'Switch the bot personality pack (moderator only)',
+      emoji: '🎭'
     },
     randomfact: {
       name: 'randomfact',

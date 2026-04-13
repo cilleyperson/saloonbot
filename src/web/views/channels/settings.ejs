@@ -93,6 +93,27 @@
         </div>
       </div>
 
+      <div class="card mb-6">
+        <div class="card-header">
+          <h3 class="card-title">Personality</h3>
+        </div>
+        <div class="card-body">
+          <p class="text-secondary mb-4">Apply a themed personality to all bot messages in this channel.</p>
+
+          <div class="form-group">
+            <label for="active_personality_pack_id" class="form-label">Active Personality Pack</label>
+            <select name="active_personality_pack_id" id="active_personality_pack_id" class="form-input">
+              <option value="">None (use default messages)</option>
+              ${typeof personalityPacks !== 'undefined' && personalityPacks.map(p => {
+                const selected = settings.active_personality_pack_id === p.id ? 'selected' : '';
+                return '<option value="' + p.id + '" ' + selected + '>' + escapeHtml(p.name) + '</option>';
+              }).join('')}
+            </select>
+            <p class="form-hint">When set, all bot messages will be themed through this personality pack. <a href="/personality">Manage packs</a></p>
+          </div>
+        </div>
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save Settings</button>
         <a href="/channels/${channel.id}" class="btn btn-secondary">Cancel</a>
