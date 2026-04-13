@@ -1,0 +1,228 @@
+<%- include('../layout', { body: `
+<div class="page">
+  ${(function() {
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const packName = pack ? escapeHtml(pack.name) : '';
+    const packDesc = pack ? escapeHtml(pack.description) : '';
+    const packId = pack ? pack.id : '';
+    const formAction = isNew ? '/personality/new' : '/personality/' + packId;
+
+    // Event type display names
+    const eventLabels = {
+      '8ball_response': '8 Ball Response',
+      'raid_shoutout': 'Raid Shoutout',
+      'counter_increment': 'Counter Increment',
+      'sub_notification': 'New Subscription',
+      'resub_notification': 'Resubscription',
+      'gift_sub_notification': 'Gift Subscription',
+      'trivia_question': 'Trivia Question',
+      'trivia_correct': 'Trivia Correct',
+      'trivia_timeout': 'Trivia Timeout',
+      'rps_result': 'Rock Paper Scissors',
+      'dadjoke_intro': 'Dad Joke',
+      'advice_intro': 'Advice',
+      'fact_intro': 'Random Fact',
+      'define_response': 'Dictionary',
+      'horoscope_intro': 'Horoscope',
+      'command_response': 'Custom Command',
+      'detection_alert': 'Object Detection',
+      'error_response': 'Error Messages'
+    };
+
+    // Available variables per event type
+    const eventVars = {
+      '8ball_response': ['response'],
+      'raid_shoutout': ['raider', 'raider_display', 'viewers', 'game', 'channel'],
+      'counter_increment': ['word', 'count', 'emoji', 'user'],
+      'sub_notification': ['user', 'months', 'tier', 'channel'],
+      'resub_notification': ['user', 'months', 'streak', 'tier', 'channel'],
+      'gift_sub_notification': ['gifter', 'recipient', 'gift_count', 'tier', 'channel'],
+      'trivia_question': ['category', 'difficulty', 'question'],
+      'trivia_correct': ['user', 'answer', 'points'],
+      'trivia_timeout': ['answer'],
+      'rps_result': ['user', 'user_choice', 'bot_choice', 'result'],
+      'dadjoke_intro': ['joke'],
+      'advice_intro': ['quote', 'author'],
+      'fact_intro': ['fact'],
+      'define_response': ['word', 'definition'],
+      'horoscope_intro': ['sign', 'horoscope'],
+      'command_response': ['user', 'response', 'command'],
+      'detection_alert': ['object', 'confidence', 'channel'],
+      'error_response': ['original']
+    };
+
+    return '<div class="page-header">' +
+      '<div class="page-header-content">' +
+        '<a href="/personality" class="back-link">&larr; Back to Packs</a>' +
+        '<h1 class="page-title">' + (isNew ? 'Create Personality Pack' : 'Edit: ' + packName) + '</h1>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="page-content">' +
+      '<form action="' + formAction + '" method="POST">' +
+        '<input type="hidden" name="_csrf" value="' + csrfToken + '">' +
+
+        '<div class="editor-layout">' +
+          // Left column: Editor
+          '<div class="editor-column">' +
+            // Metadata
+            '<div class="card mb-6">' +
+              '<div class="card-header"><h3 class="card-title">Pack Details</h3></div>' +
+              '<div class="card-body">' +
+                '<div class="form-group">' +
+                  '<label for="name" class="form-label">Name</label>' +
+                  '<input type="text" id="name" name="name" class="form-input" value="' + packName + '" required>' +
+                '</div>' +
+                '<div class="form-group">' +
+                  '<label for="description" class="form-label">Description</label>' +
+                  '<input type="text" id="description" name="description" class="form-input" value="' + packDesc + '" placeholder="A short description of this personality">' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+
+            // Template sections
+            eventTypes.map(function(eventType) {
+              const label = eventLabels[eventType] || eventType;
+              const vars = eventVars[eventType] || [];
+              const existingTemplates = (!isNew && templates && templates[eventType]) ? templates[eventType] : [];
+              const sectionId = 'section-' + eventType.replace(/_/g, '-');
+
+              return '<div class="template-section" id="' + sectionId + '">' +
+                '<button type="button" class="template-section-header" aria-expanded="false" aria-controls="' + sectionId + '-body" onclick="toggleSection(this)">' +
+                  '<span class="template-section-title">' + escapeHtml(label) + '</span>' +
+                  '<span class="template-section-count">' + existingTemplates.length + ' variant' + (existingTemplates.length !== 1 ? 's' : '') + '</span>' +
+                  '<svg class="template-section-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.427 5.427a.75.75 0 011.146 0L8 7.854l2.427-2.427a.75.75 0 111.146 1.146l-3 3a.75.75 0 01-1.146 0l-3-3a.75.75 0 010-1.146z"/></svg>' +
+                '</button>' +
+                '<div class="template-section-body" id="' + sectionId + '-body" hidden>' +
+                  '<p class="form-hint mb-2">Variables: ' + vars.map(function(v) { return '<code class="var-tag">{' + v + '}</code>'; }).join(' ') + '</p>' +
+                  '<div class="template-variants" data-event-type="' + eventType + '">' +
+                    (existingTemplates.length > 0 ?
+                      existingTemplates.map(function(t, i) {
+                        return '<div class="template-variant">' +
+                          '<input type="text" name="templates[' + eventType + '][]" class="form-input template-input" value="' + escapeHtml(t.template_text) + '" placeholder="Template variant ' + (i + 1) + '">' +
+                          '<button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(this)" aria-label="Remove variant">&times;</button>' +
+                        '</div>';
+                      }).join('')
+                    :
+                      '<div class="template-variant">' +
+                        '<input type="text" name="templates[' + eventType + '][]" class="form-input template-input" value="" placeholder="No template — bot uses default message">' +
+                        '<button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(this)" aria-label="Remove variant">&times;</button>' +
+                      '</div>'
+                    ) +
+                  '</div>' +
+                  '<button type="button" class="btn btn-sm btn-secondary mt-2" onclick="addVariant(this, \\'' + eventType + '\\')" >+ Add Variant</button>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+
+            '<div class="mt-6">' +
+              '<button type="submit" class="btn btn-primary">Save Pack</button>' +
+              ' <a href="/personality" class="btn btn-secondary">Cancel</a>' +
+            '</div>' +
+          '</div>' +
+
+          // Right column: Preview
+          '<div class="preview-column">' +
+            '<div class="preview-panel" id="preview-panel">' +
+              '<div class="preview-header">Live Preview</div>' +
+              '<div class="preview-messages" id="preview-messages" aria-live="polite">' +
+                '<div class="preview-placeholder">Edit a template to see a preview</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</form>' +
+    '</div>';
+  })()}
+</div>
+
+<script>
+function toggleSection(btn) {
+  var body = document.getElementById(btn.getAttribute('aria-controls'));
+  var expanded = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', !expanded);
+  body.hidden = expanded;
+}
+
+function addVariant(btn, eventType) {
+  var container = btn.previousElementSibling;
+  var count = container.querySelectorAll('.template-variant').length;
+  var div = document.createElement('div');
+  div.className = 'template-variant';
+  div.innerHTML = '<input type="text" name="templates[' + eventType + '][]" class="form-input template-input" value="" placeholder="Template variant ' + (count + 1) + '">' +
+    '<button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(this)" aria-label="Remove variant">&times;</button>';
+  container.appendChild(div);
+  div.querySelector('input').focus();
+  updateSectionCount(container);
+}
+
+function removeVariant(btn) {
+  var variant = btn.parentElement;
+  var container = variant.parentElement;
+  variant.remove();
+  updateSectionCount(container);
+}
+
+function updateSectionCount(container) {
+  var section = container.closest('.template-section');
+  var count = container.querySelectorAll('.template-input').length;
+  var filled = Array.from(container.querySelectorAll('.template-input')).filter(function(i) { return i.value.trim(); }).length;
+  var countEl = section.querySelector('.template-section-count');
+  if (countEl) countEl.textContent = filled + ' variant' + (filled !== 1 ? 's' : '');
+}
+
+// Debounced preview refresh
+var previewTimer;
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('template-input')) {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(refreshPreview, 500);
+  }
+});
+
+function refreshPreview() {
+  var packId = ${typeof pack !== 'undefined' && pack ? pack.id : 'null'};
+  if (!packId) return;
+
+  var panel = document.getElementById('preview-messages');
+  panel.innerHTML = '<div class="preview-placeholder">Generating preview...</div>';
+
+  fetch('/personality/' + packId + '/preview')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.previews || data.previews.length === 0) {
+        panel.innerHTML = '<div class="preview-placeholder">No preview available</div>';
+        return;
+      }
+      panel.innerHTML = data.previews.map(function(p) {
+        return '<div class="preview-message">' +
+          '<span class="preview-username">SaloonBot</span> ' +
+          '<span class="preview-text">' + escapePreviewHtml(p.message) + '</span>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      panel.innerHTML = '<div class="preview-placeholder">Preview unavailable</div>';
+    });
+}
+
+function escapePreviewHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Load preview on page load if editing
+if (${typeof pack !== 'undefined' && pack ? 'true' : 'false'}) {
+  refreshPreview();
+}
+</script>
+`, activePage: 'personality' }) %>

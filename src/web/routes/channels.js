@@ -5,6 +5,7 @@ const settingsRepo = require('../../database/repositories/settings-repo');
 const commandRepo = require('../../database/repositories/command-repo');
 const counterRepo = require('../../database/repositories/counter-repo');
 const chatMembershipRepo = require('../../database/repositories/chat-membership-repo');
+const personalityRepo = require('../../database/repositories/personality-repo');
 const botCore = require('../../bot');
 const { createChildLogger } = require('../../utils/logger');
 
@@ -79,12 +80,14 @@ router.get('/:id/settings', (req, res) => {
 
   const settings = settingsRepo.getSettings(channelId);
   const defaults = settingsRepo.getDefaults();
+  const personalityPacks = personalityRepo.getAllPacks();
 
   res.render('channels/settings', {
     title: `Settings - ${channel.display_name || channel.twitch_username}`,
     channel,
     settings,
-    defaults
+    defaults,
+    personalityPacks
   });
 });
 
@@ -107,7 +110,8 @@ router.post('/:id/settings', (req, res) => {
       sub_notification_enabled,
       sub_notification_template,
       resub_notification_template,
-      gift_sub_notification_template
+      gift_sub_notification_template,
+      active_personality_pack_id
     } = req.body;
 
     settingsRepo.updateSettings(channelId, {
@@ -116,7 +120,8 @@ router.post('/:id/settings', (req, res) => {
       sub_notification_enabled: sub_notification_enabled === 'on',
       sub_notification_template,
       resub_notification_template,
-      gift_sub_notification_template
+      gift_sub_notification_template,
+      active_personality_pack_id: active_personality_pack_id ? parseInt(active_personality_pack_id, 10) : null
     });
 
     logger.info(`Settings updated for channel ${channel.twitch_username}`);
