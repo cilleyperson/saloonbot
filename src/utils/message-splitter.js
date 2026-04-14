@@ -4,7 +4,48 @@
  */
 
 const MAX_LENGTH = 490; // Buffer for safety
-const SUFFIX_LENGTH = 10; // " (1/10)" worst case
+
+/**
+ * Build chunks without any suffixes.
+ * @param {string} text
+ * @param {number} chunkLength
+ * @returns {string[]}
+ */
+function buildChunks(text, chunkLength) {
+  const chunks = [];
+  const words = text.split(' ');
+  let currentChunk = '';
+
+  for (const word of words) {
+    const testChunk = currentChunk ? `${currentChunk} ${word}` : word;
+
+    if (testChunk.length <= chunkLength) {
+      currentChunk = testChunk;
+      continue;
+    }
+
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+
+    if (word.length > chunkLength) {
+      let remaining = word;
+      while (remaining.length > 0) {
+        chunks.push(remaining.slice(0, chunkLength));
+        remaining = remaining.slice(chunkLength);
+      }
+      currentChunk = '';
+    } else {
+      currentChunk = word;
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
 
 /**
  * Split a long message into chunks that fit Twitch limits
@@ -17,44 +58,23 @@ function splitMessage(text, maxLength = MAX_LENGTH) {
     return [text];
   }
 
-  const chunks = [];
-  const words = text.split(' ');
-  let currentChunk = '';
+  // First pass without suffix budget; if only one chunk we avoid unnecessary splitting.
+  let chunks = buildChunks(text, maxLength);
 
-  for (const word of words) {
-    const testChunk = currentChunk ? `${currentChunk} ${word}` : word;
-
-    if (testChunk.length <= maxLength - SUFFIX_LENGTH) {
-      currentChunk = testChunk;
-    } else {
-      if (currentChunk) {
-        chunks.push(currentChunk);
-      }
-      // If a single word is longer than max, split it
-      if (word.length > maxLength - SUFFIX_LENGTH) {
-        let remaining = word;
-        while (remaining.length > 0) {
-          const piece = remaining.slice(0, maxLength - SUFFIX_LENGTH);
-          chunks.push(piece);
-          remaining = remaining.slice(maxLength - SUFFIX_LENGTH);
-        }
-        currentChunk = '';
-      } else {
-        currentChunk = word;
-      }
-    }
+  if (chunks.length <= 1) {
+    return chunks;
   }
 
-  if (currentChunk) {
-    chunks.push(currentChunk);
+  // Reserve exact suffix size based on final chunk count. Rebuild until count is stable.
+  let previousCount = 0;
+  while (chunks.length !== previousCount) {
+    previousCount = chunks.length;
+    const suffixLength = ` (${previousCount}/${previousCount})`.length;
+    const availableLength = Math.max(1, maxLength - suffixLength);
+    chunks = buildChunks(text, availableLength);
   }
 
-  // Add part numbers if multiple chunks
-  if (chunks.length > 1) {
-    return chunks.map((chunk, i) => `${chunk} (${i + 1}/${chunks.length})`);
-  }
-
-  return chunks;
+  return chunks.map((chunk, i) => `${chunk} (${i + 1}/${chunks.length})`);
 }
 
 /**
