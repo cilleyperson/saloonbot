@@ -1,8 +1,10 @@
 /**
- * Mock for Twurple packages
+ * Mock for Twurple packages.
  *
- * This mock provides stub implementations for all Twurple packages
- * to allow testing without the actual Twitch API integration.
+ * Models enough of the real surface that resilience tests exercise true
+ * semantics rather than a stub: RefreshingAuthProvider exposes the refresh +
+ * failure callbacks and refreshAccessTokenForUser; ChatClient exposes
+ * reconnect/currentChannels/isConnected and the auth-failure callback.
  */
 
 // @twurple/api
@@ -19,28 +21,53 @@ class ApiClient {
 
 // @twurple/auth
 class RefreshingAuthProvider {
-  constructor() {}
+  constructor() {
+    this._onRefresh = null;
+    this._onRefreshFailure = null;
+  }
   addUser = jest.fn();
+  addIntentsToUser = jest.fn();
   removeUser = jest.fn();
   getAccessTokenForUser = jest.fn().mockResolvedValue(null);
-  onRefresh = jest.fn();
+  refreshAccessTokenForUser = jest.fn().mockResolvedValue({ accessToken: 'new', refreshToken: 'new', expiresIn: 3600 });
+  onRefresh = jest.fn(function (cb) { this._onRefresh = cb; });
+  onRefreshFailure = jest.fn(function (cb) { this._onRefreshFailure = cb; });
 }
 
 class StaticAuthProvider {
   constructor() {}
 }
 
+// twurple caches refresh failures and disables the user until re-added.
+class CachedRefreshFailureError extends Error {
+  constructor(userId) {
+    super(`Cached refresh failure for user ${userId}`);
+    this.name = 'CachedRefreshFailureError';
+  }
+}
+
 // @twurple/chat
 class ChatClient {
-  constructor() {}
+  constructor() {
+    this._channels = [];
+    this._connected = false;
+  }
   connect = jest.fn().mockResolvedValue();
   disconnect = jest.fn().mockResolvedValue();
-  join = jest.fn().mockResolvedValue();
+  quit = jest.fn().mockResolvedValue();
+  reconnect = jest.fn().mockResolvedValue();
+  join = jest.fn(function (channel) { if (!this._channels.includes(channel)) this._channels.push(channel); return Promise.resolve(); });
   part = jest.fn().mockResolvedValue();
   say = jest.fn().mockResolvedValue();
   onMessage = jest.fn();
   onConnect = jest.fn();
   onDisconnect = jest.fn();
+  onJoin = jest.fn();
+  onPart = jest.fn();
+  onAuthenticationFailure = jest.fn();
+  get currentChannels() { return this._channels; }
+  get isConnected() { return this._connected; }
+  get currentNick() { return 'mockbot'; }
 }
 
 // @twurple/eventsub-ws
@@ -48,9 +75,12 @@ class EventSubWsListener {
   constructor() {}
   start = jest.fn().mockResolvedValue();
   stop = jest.fn().mockResolvedValue();
-  onChannelFollow = jest.fn();
-  onChannelSubscription = jest.fn();
-  onChannelRaidTo = jest.fn();
+  onChannelFollow = jest.fn(() => ({ stop: jest.fn() }));
+  onChannelSubscription = jest.fn(() => ({ stop: jest.fn() }));
+  onChannelSubscriptionMessage = jest.fn(() => ({ stop: jest.fn() }));
+  onChannelSubscriptionGift = jest.fn(() => ({ stop: jest.fn() }));
+  onChannelRaidTo = jest.fn(() => ({ stop: jest.fn() }));
+  onSubscriptionCreateFailure = jest.fn();
 }
 
 module.exports = {
@@ -60,6 +90,7 @@ module.exports = {
   // @twurple/auth
   RefreshingAuthProvider,
   StaticAuthProvider,
+  CachedRefreshFailureError,
 
   // @twurple/chat
   ChatClient,

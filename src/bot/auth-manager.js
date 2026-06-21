@@ -2,6 +2,7 @@ const { RefreshingAuthProvider } = require('@twurple/auth');
 const config = require('../config');
 const authRepo = require('../database/repositories/auth-repo');
 const { createChildLogger } = require('../utils/logger');
+const { sendAlert, clearAlert } = require('../utils/alert');
 
 const logger = createChildLogger('auth-manager');
 
@@ -14,6 +15,16 @@ const logger = createChildLogger('auth-manager');
  */
 const RETRY_BASE_DELAY_MS = 5000; // 5 seconds
 const MAX_RETRY_ATTEMPTS = 8;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;   // proactive refresh sweep cadence (5 min)
+const REFRESH_LEAD_MS = 15 * 60 * 1000;    // refresh when within 15 min of expiry
+
+// Auth health states surfaced to the operator.
+const HEALTH = {
+  HEALTHY: 'healthy',
+  REFRESHING: 'refreshing',
+  TRANSIENT_FAILURE: 'transient_failure',
+  PERMANENT_FAILURE: 'permanent_failure'
+};
 
 class AuthManager {
   constructor() {
@@ -23,6 +34,19 @@ class AuthManager {
     this.channelTwitchIds = new Set(); // Track registered channel Twitch IDs
     this.initialized = false;
     this._pendingRetries = new Map();  // Track in-flight retries by userId
+    this._refreshInFlight = new Map(); // Per-user singleflight: userId -> Promise
+    this._authHealth = new Map();      // userId -> { state, since, detail }
+    this._sweepInterval = null;        // Proactive refresh interval handle
+    this._onChannelRecovered = null;   // Hook: (twitchId) => void, set by BotCore for EventSub resub
+  }
+
+  /**
+   * Register a hook called after a CHANNEL user's token is recovered, so the
+   * caller can re-create EventSub subscriptions that may have dropped.
+   * @param {(twitchId: string) => (void|Promise<void>)} fn
+   */
+  setRecoveryHook(fn) {
+    this._onChannelRecovered = fn;
   }
 
   /**
@@ -58,6 +82,13 @@ class AuthManager {
 
     this.initialized = true;
     logger.info(`Auth manager initialized with ${this.channelTwitchIds.size} channel tokens`);
+
+    // Catch dead/expired tokens at startup (refresh or alert) rather than
+    // discovering them hours later mid-stream.
+    await this._startupTokenCheck();
+
+    // Refresh tokens proactively, before they expire.
+    this._startProactiveRefresh();
   }
 
   /**
@@ -69,6 +100,15 @@ class AuthManager {
       clearTimeout(timeoutId);
     }
     this._pendingRetries.clear();
+
+    // Clear the proactive refresh sweep
+    if (this._sweepInterval) {
+      clearInterval(this._sweepInterval);
+      this._sweepInterval = null;
+    }
+
+    // Drop any in-flight refresh tracking (the promises resolve on their own)
+    this._refreshInFlight.clear();
 
     logger.info('Auth manager shut down');
   }
@@ -202,6 +242,10 @@ class AuthManager {
     if (!updated) {
       logger.warn(`Token refreshed for unknown user ${userId}, no database rows updated`);
     }
+
+    // A successful refresh means this user is healthy again.
+    this._setHealth(userId, HEALTH.HEALTHY);
+    clearAlert(`auth-fail-${userId}`);
   }
 
   /**
@@ -235,6 +279,16 @@ class AuthManager {
   _handleRefreshFailure(userId, error) {
     logger.warn(`Token refresh failed for user ${userId}`, { error: error.message });
 
+    if (this._isPermanentAuthFailure(error)) {
+      // Revoked token / invalid_grant: retrying is pointless and just hammers
+      // Twitch's token endpoint. Alert immediately; the operator must re-auth.
+      this._setHealth(userId, HEALTH.PERMANENT_FAILURE, error.message);
+      this._alertPermanentFailure(userId, error);
+      return;
+    }
+
+    this._setHealth(userId, HEALTH.TRANSIENT_FAILURE, error.message);
+
     // Don't stack retries for the same user
     if (this._pendingRetries.has(userId)) {
       logger.debug(`Retry already pending for user ${userId}, skipping`);
@@ -242,6 +296,39 @@ class AuthManager {
     }
 
     this._scheduleRetry(userId, 1);
+  }
+
+  /**
+   * Classify a refresh error as permanent (requires operator re-auth) vs
+   * transient (worth retrying). Permanent = revoked/invalid refresh token or
+   * twurple's cached-refresh-failure state.
+   * @param {Error} error
+   * @returns {boolean}
+   */
+  _isPermanentAuthFailure(error) {
+    const name = (error && error.name) || '';
+    const msg = ((error && error.message) || '').toLowerCase();
+    return (
+      name === 'CachedRefreshFailureError' ||
+      msg.includes('invalid_grant') ||
+      msg.includes('invalid refresh token') ||
+      msg.includes('revoked')
+    );
+  }
+
+  /**
+   * Alert the operator that a user needs manual re-authentication. Deduped per
+   * user so a single failure episode doesn't spam.
+   * @param {string} userId
+   * @param {Error} error
+   */
+  _alertPermanentFailure(userId, error) {
+    const who = userId === this.botTwitchId ? `bot (@${this.botUsername})` : `channel ${userId}`;
+    logger.error(`Permanent auth failure for ${who} - manual re-authentication required`, { error: error.message });
+    sendAlert(
+      `Auth failed for ${who} and cannot auto-recover (${error.message}). Re-authenticate via the admin interface.`,
+      { dedupeKey: `auth-fail-${userId}` }
+    );
   }
 
   /**
@@ -253,6 +340,8 @@ class AuthManager {
     if (attempt > MAX_RETRY_ATTEMPTS) {
       logger.error(`All ${MAX_RETRY_ATTEMPTS} token refresh retries exhausted for user ${userId}. Manual re-authentication required.`);
       this._pendingRetries.delete(userId);
+      this._setHealth(userId, HEALTH.PERMANENT_FAILURE, 'retry attempts exhausted');
+      this._alertPermanentFailure(userId, new Error('refresh retries exhausted'));
       return;
     }
 
@@ -332,7 +421,188 @@ class AuthManager {
     }
   }
 
+  /**
+   * Refresh a user's token through a per-user singleflight lock. twurple's
+   * refreshAccessTokenForUser bypasses its internal TokenFetcher queue, so two
+   * concurrent refreshes on the same refresh token can race -- one succeeds,
+   * the other 400s, and twurple caches the failure and DISABLES the user. The
+   * lock collapses concurrent callers (sweep + recovery + lazy refresh) onto a
+   * single refresh.
+   * @param {string} userId
+   * @returns {Promise<*>}
+   */
+  async _refreshUserOnce(userId) {
+    const existing = this._refreshInFlight.get(userId);
+    if (existing) {
+      return existing;
+    }
 
+    const promise = (async () => {
+      try {
+        return await this.authProvider.refreshAccessTokenForUser(userId);
+      } finally {
+        this._refreshInFlight.delete(userId);
+      }
+    })();
+
+    this._refreshInFlight.set(userId, promise);
+    return promise;
+  }
+
+  /**
+   * Recover a user whose token went bad: reload the latest token from the DB
+   * (preserving the correct intents) to clear any cached failure, then force a
+   * single refresh. On success for a channel user, fire the recovery hook so
+   * EventSub subscriptions can be re-created.
+   *
+   *   recoverUser ─▶ _reAddUserFromDb (clears cached failure, correct intents)
+   *               ─▶ _refreshUserOnce (singleflight) ─▶ onRefresh persists + marks healthy
+   *               ─▶ channel? ─▶ _onChannelRecovered(twitchId)  (EventSub resub)
+   *
+   * @param {string} userId
+   * @returns {Promise<boolean>} true if refresh succeeded
+   */
+  async recoverUser(userId) {
+    try {
+      this._setHealth(userId, HEALTH.REFRESHING);
+      await this._reAddUserFromDb(userId);
+      await this._refreshUserOnce(userId);
+
+      if (userId !== this.botTwitchId && this.channelTwitchIds.has(userId) && this._onChannelRecovered) {
+        try {
+          await this._onChannelRecovered(userId);
+        } catch (hookError) {
+          logger.error(`Recovery hook failed for ${userId}`, { error: hookError.message });
+        }
+      }
+
+      logger.info(`Recovered token for user ${userId}`);
+      return true;
+    } catch (error) {
+      // onRefreshFailure already classified + scheduled/alerted; just report.
+      logger.warn(`recoverUser failed for ${userId}`, { error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Start the proactive refresh sweep. One interval refreshes any token within
+   * REFRESH_LEAD_MS of expiry, so tokens are renewed before they break instead
+   * of after Twitch rejects them.
+   */
+  _startProactiveRefresh() {
+    if (this._sweepInterval) {
+      return;
+    }
+    this._sweepInterval = setInterval(() => {
+      this._sweepTokens().catch((error) => logger.error('Token sweep failed', { error: error.message }));
+    }, SWEEP_INTERVAL_MS);
+    if (typeof this._sweepInterval.unref === 'function') {
+      this._sweepInterval.unref(); // don't keep the process alive for the timer
+    }
+    logger.info(`Proactive token refresh sweep started (every ${SWEEP_INTERVAL_MS / 1000}s)`);
+  }
+
+  /**
+   * One sweep pass: refresh tokens nearing expiry, via the singleflight lock,
+   * skipping users with a pending retry or in-flight refresh.
+   */
+  async _sweepTokens() {
+    const now = Date.now();
+    for (const { userId, expiresAt } of this._collectUsersWithExpiry()) {
+      if (!expiresAt) {
+        continue;
+      }
+      if (this._pendingRetries.has(userId) || this._refreshInFlight.has(userId)) {
+        continue;
+      }
+      const msLeft = new Date(expiresAt).getTime() - now;
+      if (msLeft <= REFRESH_LEAD_MS) {
+        logger.info(`Proactively refreshing token for ${userId} (${Math.round(msLeft / 1000)}s to expiry)`);
+        try {
+          await this._refreshUserOnce(userId);
+        } catch (error) {
+          // onRefreshFailure handles retry/alerting; don't let one user abort the sweep.
+          logger.warn(`Proactive refresh failed for ${userId}`, { error: error.message });
+        }
+      }
+    }
+  }
+
+  /**
+   * Collect every registered user with its stored expiry from the DB.
+   * @returns {{userId: string, expiresAt: (string|null)}[]}
+   */
+  _collectUsersWithExpiry() {
+    const users = [];
+    const botAuth = authRepo.getBotAuthWithTwitchId();
+    if (botAuth && botAuth.twitch_user_id) {
+      users.push({ userId: botAuth.twitch_user_id, expiresAt: botAuth.expires_at || null });
+    }
+    for (const auth of authRepo.getAllChannelAuthsWithTwitchId()) {
+      const twitchId = auth.twitch_user_id || auth.channel_twitch_id;
+      if (twitchId && twitchId !== this.botTwitchId) {
+        users.push({ userId: twitchId, expiresAt: auth.expires_at || null });
+      }
+    }
+    return users;
+  }
+
+  /**
+   * On startup, refresh any token already past (or near) expiry and surface any
+   * permanent failures immediately, so a dead token is caught at boot.
+   */
+  async _startupTokenCheck() {
+    const now = Date.now();
+    for (const { userId, expiresAt } of this._collectUsersWithExpiry()) {
+      // null expiry = unknown (legacy/first-load); a refresh is cheap insurance.
+      const msLeft = expiresAt ? new Date(expiresAt).getTime() - now : -1;
+      if (msLeft <= REFRESH_LEAD_MS) {
+        try {
+          await this._refreshUserOnce(userId);
+        } catch (error) {
+          logger.warn(`Startup token check: refresh failed for ${userId}`, { error: error.message });
+          // onRefreshFailure classified + alerted if permanent.
+        }
+      }
+    }
+  }
+
+  /**
+   * Record a user's auth health state.
+   * @param {string} userId
+   * @param {string} state - one of HEALTH.*
+   * @param {string} [detail]
+   */
+  _setHealth(userId, state, detail) {
+    this._authHealth.set(userId, { state, since: new Date().toISOString(), detail: detail || null });
+  }
+
+  /**
+   * Auth health snapshot for the admin surface. Returns per-user state +
+   * expiry. NEVER includes token values -- states and timestamps only.
+   * @returns {{userId: string, label: string, isBot: boolean, state: string,
+   *   expiresAt: (string|null), since: (string|null), detail: (string|null)}[]}
+   */
+  getAuthHealth() {
+    const out = [];
+    const seen = new Set();
+    for (const { userId, expiresAt } of this._collectUsersWithExpiry()) {
+      const health = this._authHealth.get(userId) || { state: HEALTH.HEALTHY, since: null, detail: null };
+      const isBot = userId === this.botTwitchId;
+      out.push({
+        userId,
+        label: isBot ? `bot (@${this.botUsername || 'unknown'})` : `channel ${userId}`,
+        isBot,
+        state: health.state,
+        expiresAt: expiresAt || null,
+        since: health.since,
+        detail: health.detail
+      });
+      seen.add(userId);
+    }
+    return out;
+  }
 
   /**
    * Get the single auth provider (used by BotCore)

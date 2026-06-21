@@ -83,6 +83,10 @@ class BotCore {
     // Set up channel manager
     this.channelManager.setDependencies(this.chatClient, this.eventSubListener, this.eventHandler);
 
+    // When a channel token recovers, re-create its EventSub subscriptions
+    // (they can drop silently when a token goes bad).
+    authManager.setRecoveryHook((twitchId) => this.channelManager.resubscribeByTwitchId(twitchId));
+
     // Set up chat message handler
     this.chatClient.onMessage((channel, user, message, msg) => {
       this.eventHandler.onChatMessage(channel, user, message, msg);
@@ -153,8 +157,17 @@ class BotCore {
       }
     });
 
-    this.chatClient.onAuthenticationFailure((message) => {
-      logger.error('Chat authentication failed', { message });
+    // Signature is (text, retryCount). Force a token refresh so twurple's
+    // built-in reconnect (Fibonacci backoff) picks up a fresh token. Do NOT
+    // start a parallel reconnect loop -- twurple already retries.
+    this.chatClient.onAuthenticationFailure((text, retryCount) => {
+      logger.error('Chat authentication failed', { text, retryCount });
+      const botId = authManager.getBotTwitchId();
+      if (botId) {
+        authManager.recoverUser(botId).catch((error) =>
+          logger.error('Bot token recovery failed', { error: error.message })
+        );
+      }
     });
 
     // EventSub events
@@ -163,6 +176,14 @@ class BotCore {
         type: subscription.type,
         error: error.message
       });
+      // An EventSub create failure is usually a stale channel token. Recover the
+      // channel's token; recoverUser fires the recovery hook to re-subscribe.
+      const twitchId = subscription && subscription.broadcasterId;
+      if (twitchId && authManager.hasChannelToken(twitchId)) {
+        authManager.recoverUser(twitchId).catch((err) =>
+          logger.error('Channel token recovery failed after EventSub failure', { error: err.message })
+        );
+      }
     });
   }
 

@@ -48,6 +48,11 @@ const config = {
     tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY
   },
 
+  // Operator alerts (optional). If unset, alerting is a no-op.
+  alerts: {
+    discordWebhookUrl: process.env.DISCORD_ALERT_WEBHOOK || null
+  },
+
   // Environment
   env: process.env.NODE_ENV || 'development',
   isDevelopment: process.env.NODE_ENV !== 'production',
