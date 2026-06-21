@@ -33,6 +33,11 @@ services:
     volumes:
       - bot-data:/app/data
       - bot-logs:/app/logs
+      # Object detection is opt-in: the YOLO model is gitignored and not baked
+      # into the image. Run `node scripts/download-yolo-model.js` on the host,
+      # then this read-only mount makes models/ available in the container.
+      # Without it, detection logs a warning and the bot serves everything else.
+      - ../models:/app/models:ro
 
     # Security hardening
     security_opt:
@@ -40,9 +45,10 @@ services:
     cap_drop:
       - ALL
 
-    # Health check configuration
+    # Health check configuration - hits unauthenticated /healthz on PORT,
+    # not GET / (which is behind auth and 302-redirects).
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "node", "-e", "const p=process.env.PORT||3000;require('http').get('http://127.0.0.1:'+p+'/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
