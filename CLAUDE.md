@@ -428,26 +428,28 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
 
 ```json
 {
-  "@dr.pogodin/csurf": "^1.16.6",
-  "@twurple/api": "^8.0.2",
-  "@twurple/auth": "^8.0.2",
-  "@twurple/chat": "^8.0.2",
-  "@twurple/eventsub-ws": "^8.0.2",
+  "@dr.pogodin/csurf": "^1.17.1",
+  "@twurple/api": "^8.1.4",
+  "@twurple/auth": "^8.1.4",
+  "@twurple/chat": "^8.1.4",
+  "@twurple/eventsub-ws": "^8.1.4",
   "bcrypt": "^6.0.0",
-  "better-sqlite3": "^12.5.0",
+  "better-sqlite3": "^12.11.1",
   "cookie-parser": "^1.4.7",
-  "dotenv": "^17.2.3",
-  "ejs": "^3.1.10",
+  "dotenv": "^17.4.2",
+  "ejs": "^6.0.1",
   "express": "^5.2.1",
-  "express-rate-limit": "^8.2.1",
-  "express-session": "^1.18.2",
+  "express-rate-limit": "^8.5.2",
+  "express-session": "^1.19.0",
   "fluent-ffmpeg": "^2.1.3",
-  "helmet": "^8.1.0",
-  "multer": "^2.0.2",
-  "onnxruntime-node": "^1.20.1",
-  "otpauth": "^9.4.1",
+  "he": "^1.2.0",
+  "helmet": "^8.2.0",
+  "multer": "^2.2.0",
+  "onnxruntime-node": "^1.27.0",
+  "otpauth": "^9.5.1",
   "qrcode": "^1.5.4",
-  "sharp": "^0.33.5",
+  "sanitize-html": "^2.17.5",
+  "sharp": "^0.35.2",
   "winston": "^3.19.0"
 }
 ```
@@ -455,12 +457,41 @@ The only exception is `login.ejs` which uses traditional EJS syntax.
 **Dev Dependencies:**
 ```json
 {
-  "jest": "^30.2.0",
-  "supertest": "^7.1.4"
+  "jest": "^30.4.2",
+  "supertest": "^7.2.2"
 }
 ```
 
-**Requires:** Node.js 20.0.0 or higher
+**Requires:** Node.js 24.0.0 or higher (pinned via `.nvmrc`, `engines`, and the Docker base image)
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every PR and push to master and is the required
+merge gate (branch protection on master):
+- **Test + audit job:** `npm ci`, `npm test`, then two `npm audit` gates — prod deps
+  must be clean at any severity (`--omit=dev --audit-level=low`) and nothing may be
+  high+ anywhere (`--audit-level=high`).
+- **Docker build + boot job:** builds the real Alpine image, runs a native-module +
+  sharp-on-musl acceptance check, and boots the container asserting `/healthz` is healthy.
+
+Dependabot (`.github/dependabot.yml`) opens weekly grouped patch/minor PRs that
+auto-merge after CI passes (`.github/workflows/dependabot-automerge.yml`); majors
+stay individual for human review.
+
+Note: the ~17 remaining moderate `npm audit` findings are all the dev-only
+`js-yaml` leaf under jest's coverage tooling (not cleanly fixable without breaking
+`jest --coverage`); they do not ship and are tolerated.
+
+## Object Detection in Docker
+
+The Docker base image is **glibc** (`node:24-bookworm-slim`), not Alpine/musl: `onnxruntime-node`
+ships only glibc prebuilts, so YOLO inference cannot load on musl. (CI's native-acceptance
+step enforces this.)
+
+The YOLO model (`models/*.onnx`) is gitignored and not baked into the image, so object
+detection is **opt-in** in containers. Run `node scripts/download-yolo-model.js` on the
+host; the compose files mount `../models:/app/models:ro` to make it available. Without a
+model, detection logs a warning and the bot serves everything else (graceful degradation).
 
 ## External APIs
 

@@ -37,6 +37,9 @@ services:
       - ../public:/app/public:ro
       - ../index.js:/app/index.js:ro
       - ../package.json:/app/package.json:ro
+      # Opt-in object detection model (gitignored, not in image). Run
+      # `node scripts/download-yolo-model.js` on the host to populate models/.
+      - ../models:/app/models:ro
       - bot-data-dev:/app/data
       - bot-logs-dev:/app/logs
 

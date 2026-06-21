@@ -1,0 +1,26 @@
+version: 2
+
+# Grouped dependency updates. Patch/minor land as a single batched PR per
+# ecosystem (less PR noise than the one-per-dep flow that produced #9-12);
+# majors still come as individual PRs so they get human review.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        update-types:
+          - minor
+          - patch
