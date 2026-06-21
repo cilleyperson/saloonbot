@@ -22,6 +22,7 @@ A feature-rich, multi-channel Twitch chatbot built with Node.js and the [Twurple
 - [Bot Commands](#bot-commands)
 - [Object Detection](#object-detection)
 - [Project Structure](#project-structure)
+- [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -740,6 +741,24 @@ docker compose logs -f
 # systemd
 journalctl -u saloon-bot -f
 ```
+
+---
+
+## Documentation
+
+In-depth docs live in [`docs/`](docs/), organized by the
+[Diataxis](https://diataxis.fr/) framework (reference / explanation / how-to).
+
+**Reliability & operations** ([`docs/reliability/`](docs/reliability/)):
+
+| Doc | Type | What it covers |
+|-----|------|----------------|
+| [Auth & connection resilience](docs/reliability/reference-auth-resilience.md) | Reference | Token health states, `AuthManager` API, `/health/auth`, dashboard panels, env |
+| [Why auth resilience works this way](docs/reliability/explanation-auth-resilience.md) | Explanation | The rejoin bug, token-centric recovery, single-flight, proactive sweep, trade-offs |
+| [Operate the bot's connection](docs/reliability/howto-operate-bot-connection.md) | How-to | Read the health panels, configure alerts, respond to disconnects, re-authenticate |
+| [CI & security pipeline](docs/reliability/reference-ci-security-pipeline.md) | Reference | CI jobs, audit gates, Dependabot config, branch protection, Docker image |
+| [Why the CI gate exists](docs/reliability/explanation-ci-security-pipeline.md) | Explanation | The 24-vuln pileup, gate scoping, glibc base, auto-merge safety |
+| [Contribute through the CI gate](docs/reliability/howto-contribute-through-ci.md) | How-to | Branch, reproduce the gate locally, merge, Dependabot auto-merge flow |
 
 ---
 
