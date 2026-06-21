@@ -18,7 +18,7 @@ jobs:
     name: Test + audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
@@ -43,7 +43,7 @@ jobs:
     name: Docker build + boot
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Builds the real production image (Alpine/musl) — proves native modules
       # (bcrypt, better-sqlite3, onnxruntime-node, sharp) compile/resolve there.
