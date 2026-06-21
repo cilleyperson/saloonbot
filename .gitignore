@@ -44,11 +44,13 @@ certs/
 *.pem
 *.key
 *.crt
-# Exclude general docs but include security reviews, feature plans, and bug docs
+# Exclude general docs but include security reviews, feature plans, bug docs,
+# and reliability/ops reference docs
 /docs/*
 !/docs/sec-review-*/
 !/docs/feature-plan-*/
 !/docs/bug-*/
+!/docs/reliability/
 
 # YOLO model files (large binaries)
 models/*.onnx
