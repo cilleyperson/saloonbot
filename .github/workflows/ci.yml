@@ -18,9 +18,9 @@ jobs:
     name: Test + audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -43,7 +43,7 @@ jobs:
     name: Docker build + boot
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Builds the real production image (Alpine/musl) — proves native modules
       # (bcrypt, better-sqlite3, onnxruntime-node, sharp) compile/resolve there.
