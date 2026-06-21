@@ -108,6 +108,7 @@ twitch-saloonbot/
 │   │   └── detection-pipeline.js      # Stream→Detection→Chat pipeline
 │   │
 │   ├── utils/
+│   │   ├── alert.js           # Operator alerts (Discord webhook), deduped, non-throwing
 │   │   ├── api-client.js      # External API wrapper with timeout
 │   │   ├── crypto.js          # AES-256-GCM token encryption
 │   │   ├── logger.js          # Winston logger with sensitive data redaction
@@ -230,8 +231,8 @@ All tokens are registered with their actual **Twitch user ID** (not empty string
 ### Key Classes
 
 - **BotCore** (`src/bot/index.js`) - Main singleton managing all bot operations
-- **AuthManager** (`src/bot/auth-manager.js`) - Multi-user OAuth with automatic token refresh; all clients share one provider
-- **ChannelManager** (`src/bot/channel-manager.js`) - Channel lifecycle, EventSub, and multi-chat support
+- **AuthManager** (`src/bot/auth-manager.js`) - Multi-user OAuth with self-healing token refresh: proactive expiry sweep, per-user singleflight-locked `recoverUser`, permanent-vs-transient failure classification, and an auth-health surface. See [docs/reliability/](docs/reliability/).
+- **ChannelManager** (`src/bot/channel-manager.js`) - Channel lifecycle, EventSub, and multi-chat support; chat-membership health (`getMembershipHealth`), reconnect rejoin (`rejoinMissing`), and EventSub re-subscription on token recovery
 - **EventHandler** (`src/bot/event-handler.js`) - Routes events to appropriate handlers
 - **CommandHandler** (`src/bot/handlers/command-handler.js`) - Custom commands and counters
 - **PredefinedCommandHandler** (`src/bot/handlers/predefined-command-handler.js`) - Built-in commands
@@ -373,6 +374,7 @@ Copy `.env.example` to `.env` and configure:
 | `TOKEN_ENCRYPTION_KEY` | Yes* | - | 64-char hex key for token encryption |
 | `DATABASE_PATH` | No | ./data/bot.db | SQLite database path |
 | `LOG_LEVEL` | No | info | error/warn/info/debug |
+| `DISCORD_ALERT_WEBHOOK` | No | - | Discord webhook for operator alerts on auth failure/disconnect. Unset = log-only. |
 | `NODE_ENV` | No | development | development/production |
 | `HTTPS_ENABLED` | No | false | Enable HTTPS for admin interface |
 | `HTTPS_PORT` | No | 3443 | HTTPS web server port |
