@@ -484,6 +484,10 @@ Note: the ~17 remaining moderate `npm audit` findings are all the dev-only
 
 ## Object Detection in Docker
 
+The Docker base image is **glibc** (`node:24-bookworm-slim`), not Alpine/musl: `onnxruntime-node`
+ships only glibc prebuilts, so YOLO inference cannot load on musl. (CI's native-acceptance
+step enforces this.)
+
 The YOLO model (`models/*.onnx`) is gitignored and not baked into the image, so object
 detection is **opt-in** in containers. Run `node scripts/download-yolo-model.js` on the
 host; the compose files mount `../models:/app/models:ro` to make it available. Without a

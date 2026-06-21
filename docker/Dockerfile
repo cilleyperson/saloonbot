@@ -1,13 +1,19 @@
 # Saloon Bot - Docker Image
 # Multi-stage build for optimized production image
+#
+# Base image is glibc (Debian bookworm-slim), NOT Alpine/musl: onnxruntime-node
+# only ships glibc prebuilts, so object detection cannot load on musl. sharp,
+# better-sqlite3, and bcrypt all have glibc builds too.
 
 # ============================================
 # Stage 1: Build stage
 # ============================================
-FROM node:24-alpine AS builder
+FROM node:24-bookworm-slim AS builder
 
-# Install build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for native modules (better-sqlite3, etc.)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -23,14 +29,16 @@ COPY . .
 # ============================================
 # Stage 2: Production stage
 # ============================================
-FROM node:24-alpine AS production
+FROM node:24-bookworm-slim AS production
 
-# Install runtime dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Install build deps for the production native module rebuild
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S botuser && \
-    adduser -S botuser -u 1001 -G botuser
+RUN groupadd -g 1001 botuser && \
+    useradd -r -u 1001 -g botuser botuser
 
 WORKDIR /app
 
