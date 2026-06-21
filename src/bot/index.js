@@ -51,9 +51,13 @@ class BotCore {
     this.apiClient = new ApiClient({ authProvider });
 
     // Create Chat client (uses same auth provider)
+    // rejoinChannelsOnReconnect: channels are joined dynamically (channels: []),
+    // so without this twurple would rejoin the empty original list on reconnect
+    // and the bot would sit connected-but-absent from every chat.
     this.rawChatClient = new ChatClient({
       authProvider,
       channels: [], // We'll join channels dynamically
+      rejoinChannelsOnReconnect: true,
       isAlwaysMod: false
     });
 
@@ -107,6 +111,26 @@ class BotCore {
     // Chat client events
     this.chatClient.onConnect(() => {
       logger.info('Connected to Twitch chat');
+      // After a reconnect twurple rejoins via rejoinChannelsOnReconnect; give it
+      // a moment to settle, then rejoin anything still missing (belt-and-suspenders)
+      // and log membership health so a "connected but absent" state is visible.
+      // On first connect joinedChats is empty (channels join afterward) -> no-op.
+      this._postConnectTimer = setTimeout(async () => {
+        try {
+          const rejoined = await this.channelManager.rejoinMissing();
+          if (rejoined.length > 0) {
+            logger.warn(`Re-joined ${rejoined.length} chat(s) after reconnect`, { rejoined });
+          }
+          const health = this.channelManager.getMembershipHealth();
+          logger.info('Chat membership health', {
+            expected: health.expectedCount,
+            joined: health.joinedCount,
+            missing: health.missing
+          });
+        } catch (error) {
+          logger.error('Post-connect rejoin check failed', { error: error.message });
+        }
+      }, 3000);
     });
 
     this.chatClient.onDisconnect((manually, reason) => {
@@ -196,6 +220,12 @@ class BotCore {
     logger.info('Stopping bot');
 
     try {
+      // Clear the pending post-connect rejoin check (avoid a leaked timer)
+      if (this._postConnectTimer) {
+        clearTimeout(this._postConnectTimer);
+        this._postConnectTimer = null;
+      }
+
       // Shutdown detection orchestrator first
       if (this.detectionOrchestrator) {
         try {

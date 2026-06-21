@@ -29,10 +29,16 @@ router.get('/', async (req, res) => {
       status: botCore.channelManager?.getChannelStatus(channel.id) || { status: 'unknown' }
     }));
 
+    // Chat-membership health: reveals "connected but joined to zero chats"
+    const chatHealth = botCore.channelManager?.getMembershipHealth
+      ? botCore.channelManager.getMembershipHealth()
+      : null;
+
     res.render('dashboard', {
       title: 'Dashboard',
       botStatus,
       channels: channelsWithStatus,
+      chatHealth,
       stats: {
         channels: channels.length,
         commands: totalCommands,
@@ -45,6 +51,7 @@ router.get('/', async (req, res) => {
       title: 'Dashboard',
       botStatus: { running: false, authenticated: false },
       channels: [],
+      chatHealth: null,
       stats: { channels: 0, commands: 0, counters: 0 },
       needsBotAuth: true,
       error: error.message
