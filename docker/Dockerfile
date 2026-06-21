@@ -38,7 +38,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Copy application code from builder
@@ -57,9 +57,11 @@ USER botuser
 # Expose web server port
 EXPOSE 3000
 
-# Health check
+# Health check - hits the unauthenticated /healthz liveness route on the
+# configured HTTP port (PORT, default 3000), not GET / which is behind auth
+# and 302-redirects to /auth/login (false "unhealthy").
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))" || exit 1
+    CMD node -e "const p=process.env.PORT||3000;require('http').get('http://127.0.0.1:'+p+'/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
 
 # Default command
 CMD ["node", "index.js"]

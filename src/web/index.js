@@ -69,6 +69,13 @@ function createApp() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
 
+  // Liveness probe - unauthenticated, mounted before session/CSRF/rate-limit
+  // so Docker HEALTHCHECK and the CI boot smoke don't churn sessions or
+  // consume the rate-limit budget. Returns 200 whenever the process is up.
+  app.get('/healthz', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   // Security headers - helmet should be one of the first middleware
   // Note: 'unsafe-inline' for scripts is needed for admin interface inline handlers
   // This is acceptable for an authenticated admin-only interface
