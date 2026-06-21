@@ -1,0 +1,95 @@
+name: CI
+
+# Test + security audit + real Docker build/boot on every PR and push to master.
+# This is the gate that was missing when dependency vulnerabilities piled up:
+# nothing previously ran tests or `npm audit` before merge.
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test + audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      # GATE A: nothing shipped to production may have ANY vulnerability.
+      - name: Audit production deps (any severity)
+        run: npm audit --omit=dev --audit-level=low
+
+      # GATE B: no high/critical anywhere, including dev tooling.
+      - name: Audit all deps (high+)
+        run: npm audit --audit-level=high
+
+  docker:
+    name: Docker build + boot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the real production image (Alpine/musl) — proves native modules
+      # (bcrypt, better-sqlite3, onnxruntime-node, sharp) compile/resolve there.
+      - name: Build production image
+        run: docker build -f docker/Dockerfile -t saloonbot:ci .
+
+      # Native + sharp-on-musl acceptance: load every native module and run a
+      # real sharp encode. A unit test on the GitHub runner cannot prove the
+      # musl prebuilt resolves inside the Alpine image.
+      - name: Native module + sharp musl acceptance
+        run: |
+          docker run --rm saloonbot:ci node -e "
+            require('bcrypt');
+            new (require('better-sqlite3'))(':memory:');
+            require('onnxruntime-node');
+            const sharp = require('sharp');
+            sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+              .png().toBuffer()
+              .then(b => { if (!b.length) throw new Error('empty buffer'); console.log('native + sharp musl OK'); })
+              .catch(e => { console.error(e); process.exit(1); });
+          "
+
+      # Boot smoke: start the container and wait for the /healthz healthcheck to
+      # report healthy. Dummy config values satisfy validation; the bot logs an
+      # auth warning and the web server stays up (index.js:51-53).
+      - name: Boot smoke (web server + /healthz)
+        run: |
+          docker run -d --name saloonbot-ci \
+            -e SESSION_SECRET=ci-smoke-secret \
+            -e TWITCH_CLIENT_ID=ci \
+            -e TWITCH_CLIENT_SECRET=ci \
+            -e CALLBACK_URL=http://localhost:3000/auth/callback \
+            saloonbot:ci
+          for i in $(seq 1 20); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' saloonbot-ci 2>/dev/null || echo starting)
+            echo "health: $status"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 3
+          done
+          echo "=== container logs ==="
+          docker logs saloonbot-ci
+          final=$(docker inspect --format '{{.State.Health.Status}}' saloonbot-ci)
+          echo "final health: $final"
+          [ "$final" = "healthy" ]
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f saloonbot-ci || true
