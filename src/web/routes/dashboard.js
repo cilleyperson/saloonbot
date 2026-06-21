@@ -34,11 +34,15 @@ router.get('/', async (req, res) => {
       ? botCore.channelManager.getMembershipHealth()
       : null;
 
+    // Token health: per-user refresh state (no token values, states only)
+    const authHealth = authManager.getAuthHealth ? authManager.getAuthHealth() : [];
+
     res.render('dashboard', {
       title: 'Dashboard',
       botStatus,
       channels: channelsWithStatus,
       chatHealth,
+      authHealth,
       stats: {
         channels: channels.length,
         commands: totalCommands,
@@ -52,10 +56,35 @@ router.get('/', async (req, res) => {
       botStatus: { running: false, authenticated: false },
       channels: [],
       chatHealth: null,
+      authHealth: [],
       stats: { channels: 0, commands: 0, counters: 0 },
       needsBotAuth: true,
       error: error.message
     });
+  }
+});
+
+/**
+ * Admin-only machine-readable health (auth + chat membership) for monitoring.
+ * Mounted under requireAuth (see web/index.js). The public /healthz route stays
+ * a bare liveness check; this exposes detail only to authenticated admins and
+ * never includes token values.
+ */
+router.get('/health/auth', (req, res) => {
+  try {
+    const authHealth = authManager.getAuthHealth ? authManager.getAuthHealth() : [];
+    const chatHealth = botCore.channelManager?.getMembershipHealth
+      ? botCore.channelManager.getMembershipHealth()
+      : null;
+    const degraded =
+      authHealth.some(h => h.state !== 'healthy') || (chatHealth ? !chatHealth.healthy : false);
+    res.status(degraded ? 503 : 200).json({
+      status: degraded ? 'degraded' : 'ok',
+      auth: authHealth,
+      chat: chatHealth
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', error: error.message });
   }
 });
 

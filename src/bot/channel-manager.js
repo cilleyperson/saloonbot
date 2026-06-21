@@ -418,6 +418,34 @@ class ChannelManager {
   }
 
   /**
+   * Re-create EventSub subscriptions for the channel with this Twitch ID.
+   * Called after the channel's token recovers -- subscriptions can drop silently
+   * when a token goes bad. Stops the old handles first to avoid duplicates.
+   * @param {string} twitchId
+   */
+  async resubscribeByTwitchId(twitchId) {
+    for (const [, data] of this.activeChannels) {
+      if (String(data.channel.twitch_id) !== String(twitchId)) {
+        continue;
+      }
+      logger.info(`Re-subscribing EventSub for ${data.channel.twitch_username} after token recovery`);
+      for (const sub of data.subscriptions) {
+        try {
+          sub.stop();
+        } catch (error) {
+          logger.debug('Error stopping old subscription', { error: error.message });
+        }
+      }
+      try {
+        data.subscriptions = await this.subscribeToEvents(data.channel);
+      } catch (error) {
+        logger.error(`Failed to re-subscribe EventSub for ${data.channel.twitch_username}`, { error: error.message });
+      }
+      return;
+    }
+  }
+
+  /**
    * Get channel status
    * @param {number} channelId - Channel ID
    * @returns {Object|null} Channel status or null

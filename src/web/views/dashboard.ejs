@@ -100,6 +100,37 @@
     </div>
     ` : ''}
 
+    ${typeof authHealth !== 'undefined' && authHealth && authHealth.length > 0 ? `
+    <div class="card mt-6">
+      <div class="card-header">
+        <h2 class="card-title">Token Health</h2>
+        <span class="badge ${authHealth.every(h => h.state === 'healthy') ? 'badge-success' : 'badge-error'}">
+          ${authHealth.every(h => h.state === 'healthy') ? 'All healthy' : 'Attention needed'}
+        </span>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr><th>Account</th><th>State</th><th>Expires</th></tr>
+          </thead>
+          <tbody>
+            ${authHealth.map(h => {
+              const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const stateClass = h.state === 'healthy' ? 'badge-success' : (h.state === 'refreshing' || h.state === 'transient_failure' ? 'badge-warning' : 'badge-error');
+              const expires = h.expiresAt ? new Date(h.expiresAt).toLocaleString() : 'unknown';
+              return `
+            <tr>
+              <td class="text-primary font-medium">${esc(h.label)}</td>
+              <td><span class="badge ${stateClass}">${esc(h.state)}</span></td>
+              <td class="text-secondary text-sm">${esc(expires)}</td>
+            </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : ''}
+
     <div class="card mt-6">
       <div class="card-header">
         <h2 class="card-title">Connected Channels</h2>
