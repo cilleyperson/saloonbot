@@ -77,6 +77,29 @@
       </div>
     </div>
 
+    ${typeof chatHealth !== 'undefined' && chatHealth ? `
+    <div class="card mt-6">
+      <div class="card-header">
+        <h2 class="card-title">Chat Membership</h2>
+        <span class="badge ${chatHealth.healthy ? 'badge-success' : 'badge-error'}">
+          ${chatHealth.healthy ? 'Healthy' : 'Drift detected'}
+        </span>
+      </div>
+      <div class="card-body">
+        <p class="text-primary font-medium">Joined ${chatHealth.joinedCount} of ${chatHealth.expectedCount} expected chat(s)</p>
+        ${!chatHealth.healthy ? `
+        <p class="text-error text-sm mt-2">
+          <strong>Not joined to ${chatHealth.missing.length} expected chat(s):</strong>
+          ${chatHealth.missing.map(c => String(c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join(', ')}
+        </p>
+        <p class="text-muted text-sm mt-1">This is the "connected but absent from chat" state. It should clear automatically on reconnect; if it persists, re-authenticate the bot.</p>
+        ` : `
+        <p class="text-muted text-sm mt-2">The bot is present in every chat it should be in.</p>
+        `}
+      </div>
+    </div>
+    ` : ''}
+
     <div class="card mt-6">
       <div class="card-header">
         <h2 class="card-title">Connected Channels</h2>

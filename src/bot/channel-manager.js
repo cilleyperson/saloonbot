@@ -270,6 +270,80 @@ class ChannelManager {
   }
 
   /**
+   * Report chat-membership health: what the bot intends to be in (expected) vs
+   * what the IRC connection is actually in (actual). Drift -- expected channels
+   * missing from actual -- is the "connected but absent from chat" symptom that
+   * appears when a reconnect doesn't rejoin channels.
+   *
+   *   joinedChats (intent) ──┐
+   *                          ├─▶ diff ─▶ missing[] (the bug) / extra[]
+   *   chatClient.currentChannels (reality) ──┘
+   *
+   * @returns {{connected: (boolean|null), expectedCount: number, joinedCount: number,
+   *   missing: string[], extra: string[], healthy: boolean, expected: string[], actual: string[]}}
+   */
+  getMembershipHealth() {
+    const norm = (c) => String(c).replace(/^#/, '').toLowerCase();
+    const expected = Array.from(this.joinedChats).map(norm).sort();
+
+    let actual = [];
+    let connected = null;
+    if (this.chatClient) {
+      if (Array.isArray(this.chatClient.currentChannels)) {
+        actual = this.chatClient.currentChannels.map(norm).sort();
+      }
+      if (typeof this.chatClient.isConnected === 'boolean') {
+        connected = this.chatClient.isConnected;
+      }
+    }
+
+    const actualSet = new Set(actual);
+    const expectedSet = new Set(expected);
+    const missing = expected.filter((c) => !actualSet.has(c));
+    const extra = actual.filter((c) => !expectedSet.has(c));
+
+    return {
+      connected,
+      expectedCount: expected.length,
+      joinedCount: actual.length,
+      missing,
+      extra,
+      healthy: missing.length === 0,
+      expected,
+      actual
+    };
+  }
+
+  /**
+   * Belt-and-suspenders rejoin: join any expected chat that is not currently
+   * joined. The primary rejoin mechanism is twurple's rejoinChannelsOnReconnect;
+   * this is a safety net for channels it misses. Idempotent -- a no-op when
+   * membership is healthy.
+   * @returns {Promise<string[]>} channels that were re-joined
+   */
+  async rejoinMissing() {
+    const health = this.getMembershipHealth();
+    if (health.missing.length === 0) {
+      return [];
+    }
+
+    logger.warn(`Rejoining ${health.missing.length} missing chat(s) after reconnect`, { missing: health.missing });
+    const rejoined = [];
+    for (const name of health.missing) {
+      if (!this.chatClient) {
+        break;
+      }
+      try {
+        await this.chatClient.join(name);
+        rejoined.push(name);
+      } catch (error) {
+        logger.error(`Failed to rejoin chat ${name}`, { error: error.message });
+      }
+    }
+    return rejoined;
+  }
+
+  /**
    * Subscribe to EventSub events for a channel
    * @param {Object} channel - Channel object
    * @returns {Array} Array of subscription handles

@@ -78,6 +78,14 @@ class PersonalityChatClient {
     return this.chatClient.currentNick;
   }
 
+  get currentChannels() {
+    return this.chatClient.currentChannels;
+  }
+
+  get isConnected() {
+    return this.chatClient.isConnected;
+  }
+
   onMessage(...args) {
     return this.chatClient.onMessage(...args);
   }
