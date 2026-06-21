@@ -11,12 +11,15 @@ const { createChildLogger } = require('../../utils/logger');
 
 const logger = createChildLogger('command-routes');
 
-// Configure multer for file uploads (temporary storage)
+// Configure multer for file uploads (temporary storage).
+// Create the dir BEFORE resolving it: realpathSync throws ENOENT on a missing
+// path, so the mkdir must come first (otherwise the container crash-loops on a
+// fresh data volume / fresh checkout where data/uploads does not exist yet).
 const uploadDir = path.join(__dirname, '../../../data/uploads');
-const uploadRoot = fs.realpathSync(path.resolve(uploadDir));
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+const uploadRoot = fs.realpathSync(path.resolve(uploadDir));
 
 /**
  * Validate that a file path is within the upload directory
