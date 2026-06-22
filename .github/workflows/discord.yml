@@ -8,7 +8,7 @@ jobs:
     name: discord commits
     steps:
       - name: Send message to discord
-        uses: Sniddl/discord-commits@v1.6
+        uses: Sniddl/discord-commits@v1.8
         with:
           webhook: ${{ secrets.DISCORD_UPDATE_WEBHOOK }}
           message: "Successful commit to **{{ github.context.payload.repository.owner.name }}/{{ github.context.payload.repository.name}}**.\nDiff: {{ github.context.payload.compare }}"
