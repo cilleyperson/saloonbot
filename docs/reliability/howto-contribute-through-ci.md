@@ -90,8 +90,8 @@ You usually don't touch these, but to understand the queue:
 - **Audit gate fails only in CI, not locally.** Your local `node_modules` is stale
   — run `npm ci` (not `npm install`) to match the committed lockfile.
 - **Docker job fails but `npm test` passed.** The bug is image-specific (native
-  module / musl-glibc / lockfile-on-Linux). The Docker job exists precisely to
-  catch these; reproduce with a local `docker build`.
+  module compile/resolve in the glibc image / lockfile-on-Linux). The Docker job
+  exists precisely to catch these; reproduce with a local `docker build`.
 - **A Dependabot patch PR didn't auto-merge.** Either CI is red on it, or the
   "Allow auto-merge" repo setting / branch protection check requirement got
   changed. Re-run CI or merge manually.

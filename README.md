@@ -199,6 +199,7 @@ Create a `.env` file in the project root with the following variables:
 | `TOKEN_ENCRYPTION_KEY` | Yes* | - | 64-character hex string for token encryption |
 | `DATABASE_PATH` | No | `./data/bot.db` | Path to SQLite database file |
 | `LOG_LEVEL` | No | `info` | Logging level: `error`, `warn`, `info`, `debug` |
+| `DISCORD_ALERT_WEBHOOK` | No | - | Discord webhook URL for operator alerts on permanent auth failure (re-auth needed). Leave blank to log only. See [docs/reliability/](docs/reliability/howto-operate-bot-connection.md). |
 | `NODE_ENV` | No | `development` | Environment: `development` or `production` |
 | `HTTPS_ENABLED` | No | `false` | Enable HTTPS for the admin interface |
 | `HTTPS_PORT` | No | `3443` | HTTPS server port |
@@ -239,6 +240,9 @@ DATABASE_PATH=./data/bot.db
 
 # Logging Level
 LOG_LEVEL=info
+
+# Operator alerts (optional): Discord webhook for permanent auth-failure notices
+DISCORD_ALERT_WEBHOOK=
 
 # Environment
 NODE_ENV=development
