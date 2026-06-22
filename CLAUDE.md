@@ -120,7 +120,7 @@ twitch-saloonbot/
 │       ├── index.js           # Express app setup with security middleware
 │       ├── middleware/        # Express middleware
 │       │   └── auth.js        # Authentication (requireAuth, setLocals)
-│       ├── routes/            # HTTP route handlers (10 routes)
+│       ├── routes/            # HTTP route handlers (11 routes)
 │       │   ├── auth.js        # Twitch OAuth routes
 │       │   ├── channels.js
 │       │   ├── chat-memberships.js
@@ -151,7 +151,7 @@ twitch-saloonbot/
 │           │   └── logs.ejs       # Detection history
 │           └── predefined-commands/
 │
-├── migrations/                # Database migrations (10 migrations)
+├── migrations/                # Database migrations (12 migrations)
 │   ├── 001_initial_schema.sql
 │   ├── 002_chat_scope.sql
 │   ├── 003_predefined_commands.sql
@@ -160,8 +160,10 @@ twitch-saloonbot/
 │   ├── 006_trivia_stats.sql
 │   ├── 007_admin_users.sql    # Admin authentication
 │   ├── 008_two_factor_auth.sql # TOTP and backup codes
-│   ├── 009_cleanup_legacy.sql # Legacy table cleanup
-│   └── 010_object_detection.sql # Stream object detection
+│   ├── 009_horoscope_cache.sql # Horoscope response cache
+│   ├── 010_object_detection.sql # Stream object detection
+│   ├── 011_auth_twitch_id.sql # Twitch user IDs on auth rows
+│   └── 012_personality_packs.sql # Personality pack schema
 │
 ├── docker/                    # Docker configuration
 │   ├── Dockerfile            # Non-root user, security hardened
@@ -196,6 +198,7 @@ twitch-saloonbot/
 │       └── two-factor.test.js
 │
 └── docs/                      # Documentation
+    ├── reliability/          # Auth-resilience + CI/security docs (Diataxis)
     └── sec-review-1/         # Security review documentation
 ```
 
@@ -374,7 +377,7 @@ Copy `.env.example` to `.env` and configure:
 | `TOKEN_ENCRYPTION_KEY` | Yes* | - | 64-char hex key for token encryption |
 | `DATABASE_PATH` | No | ./data/bot.db | SQLite database path |
 | `LOG_LEVEL` | No | info | error/warn/info/debug |
-| `DISCORD_ALERT_WEBHOOK` | No | - | Discord webhook for operator alerts on auth failure/disconnect. Unset = log-only. |
+| `DISCORD_ALERT_WEBHOOK` | No | - | Discord webhook for operator alerts on permanent auth failure (re-auth needed) / refresh-retry exhaustion. Unset = log-only. |
 | `NODE_ENV` | No | development | development/production |
 | `HTTPS_ENABLED` | No | false | Enable HTTPS for admin interface |
 | `HTTPS_PORT` | No | 3443 | HTTPS web server port |

@@ -35,8 +35,8 @@ The ~17 tolerated `js-yaml` moderates (Jest coverage tooling) are exactly the
 "dev-only, don't ship, no clean fix" case the split is designed to pass.
 
 ### Build AND boot the real image in CI
-A green test run on GitHub's Ubuntu runner does not prove the production Alpine/
-glibc image installs or boots. Native modules (`bcrypt`, `better-sqlite3`,
+A green test run on GitHub's Ubuntu runner does not prove the production glibc
+(`node:24-bookworm-slim`) image installs or boots. Native modules (`bcrypt`, `better-sqlite3`,
 `onnxruntime-node`, `sharp`) compile and link against the base image's libc — that
 only fails *in the image*. So CI builds the actual Dockerfile, loads every native
 module inside it, runs a real `sharp` encode, and boots the container until

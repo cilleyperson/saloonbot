@@ -23,7 +23,7 @@ Node version comes from `.nvmrc` (Node 24). Uses `actions/checkout@v5` and
 
 ### Job: `Docker build + boot` (ubuntu-latest)
 1. `docker build -f docker/Dockerfile -t saloonbot:ci .` — builds the real production image.
-2. **Native + sharp-musl acceptance** — runs `node -e` in the image that loads `bcrypt`, `better-sqlite3`, `onnxruntime-node`, and runs a real `sharp` encode. Proves native modules resolve in the deployed image (the Ubuntu runner alone can't).
+2. **Native module + sharp acceptance** — runs `node -e` in the (glibc) image that loads `bcrypt`, `better-sqlite3`, `onnxruntime-node`, and runs a real `sharp` encode. Proves native modules resolve in the deployed image (the Ubuntu runner alone can't).
 3. **Boot smoke** — starts the container and asserts the `/healthz` healthcheck reports `healthy`.
 
 Both jobs are **required status checks** on `master` (see Branch protection).
