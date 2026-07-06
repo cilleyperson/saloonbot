@@ -34,7 +34,7 @@
     "otpauth": "^9.5.1",
     "qrcode": "^1.5.4",
     "sanitize-html": "^2.17.5",
-    "sharp": "^0.35.2",
+    "sharp": "^0.35.3",
     "winston": "^3.19.0"
   },
   "private": true,
